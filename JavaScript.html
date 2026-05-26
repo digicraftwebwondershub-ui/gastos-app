@@ -65,24 +65,15 @@ const App = {
     App.showGlobalLoader();
     const allowed = App.state.rights ? App.state.rights.categories : ["*"];
     
-    google.script.run.withSuccessHandler(function(expRecords) {
-      App.state.expenses = expRecords || [];
+    google.script.run.withSuccessHandler(function(res) {
+      App.state.expenses = res.expenses || [];
+      App.state.settlements = res.settlements || [];
+      App.state.qrDirectory = res.qrDirectory || [];
+      App.state.estimatorLogs = res.estimates || [];
       
-      google.script.run.withSuccessHandler(function(settleRecords) {
-        App.state.settlements = settleRecords || [];
-        
-        google.script.run.withSuccessHandler(function(qrRecords) {
-          App.state.qrDirectory = qrRecords || [];
-          
-          google.script.run.withSuccessHandler(function(estRecords) {
-            App.state.estimatorLogs = estRecords || [];
-            
-            App.renderActiveViewContext();
-            App.hideGlobalLoader();
-          }).getBudgetEstimatesData();
-        }).getQRDirectoryData();
-      }).getSettlementsData(allowed);
-    }).getExpensesData(allowed);
+      App.renderActiveViewContext();
+      App.hideGlobalLoader();
+    }).getCombinedDashboardData(allowed);
   },
 
   populateDynamicDropdownFilters: function() {
@@ -499,6 +490,23 @@ const App = {
     grid.innerHTML = html;
   },
 
+  transformDriveUrl: function(url) {
+    if (!url) return "";
+    // Standard Google Drive file view/edit link pattern
+    const driveRegex = /https:\/\/drive\.google\.com\/file\/d\/([^\/]+)/;
+    const match = url.match(driveRegex);
+    if (match && match[1]) {
+      return `https://lh3.googleusercontent.com/u/0/d/${match[1]}=w1000`;
+    }
+    // Shared link pattern (open?id=...)
+    const sharedRegex = /https:\/\/drive\.google\.com\/open\?id=([^\&]+)/;
+    const sharedMatch = url.match(sharedRegex);
+    if (sharedMatch && sharedMatch[1]) {
+       return `https://lh3.googleusercontent.com/u/0/d/${sharedMatch[1]}=w1000`;
+    }
+    return url;
+  },
+
   launchDirectQRViewer: function(email) {
     const qr = App.state.qrDirectory.find(q => q.email.toLowerCase().trim() === email.toLowerCase().trim());
     if(!qr) {
@@ -509,7 +517,7 @@ const App = {
     document.getElementById('qr-viewer-name').innerText = App.resolveUserDisplayName(email);
     document.getElementById('qr-viewer-bank').innerText = qr.bank + " // Directory";
     document.getElementById('qr-viewer-number').innerText = qr.number;
-    document.getElementById('qr-viewer-img').src = qr.url;
+    document.getElementById('qr-viewer-img').src = App.transformDriveUrl(qr.url);
     
     App.openModal('qr-viewer-modal');
   },

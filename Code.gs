@@ -351,6 +351,15 @@ function getBudgetEstimatesData() {
   return list;
 }
 
+function getCombinedDashboardData(allowedCategories) {
+  return {
+    expenses: getExpensesData(allowedCategories),
+    settlements: getSettlementsData(allowedCategories),
+    qrDirectory: getQRDirectoryData(),
+    estimates: getBudgetEstimatesData()
+  };
+}
+
 function saveQRHubRecord(payload) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
