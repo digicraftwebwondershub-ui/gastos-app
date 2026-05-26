@@ -13,7 +13,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <?!= include('Styles'); ?>
 </head>
-<body id="app-body" class="h-full overflow-hidden font-sans bg-white text-slate-900 transition-colors duration-300">
+<body id="app-body" class="h-full overflow-hidden font-sans bg-white dark:bg-slate-950 text-slate-900 dark:text-slate-100 transition-colors duration-300">
 
   <div id="app-loader" class="fixed inset-0 z-50 flex items-center justify-center bg-white/90 dark:bg-slate-950/90 backdrop-blur-md">
     <div class="text-center space-y-4">
@@ -35,7 +35,7 @@
 
   <div id="app-container" class="hidden flex h-screen overflow-hidden">
     
-    <aside id="app-sidebar" class="w-64 border-r border-slate-200 dark:border-slate-900 bg-slate-50 dark:bg-slate-900/40 flex flex-col justify-between p-4 z-10 transition-colors duration-300">
+    <aside id="app-sidebar" class="w-64 border-r border-slate-200 dark:border-slate-900 bg-slate-50 dark:bg-slate-900 flex flex-col justify-between p-4 z-10 transition-colors duration-300">
       <div>
         <div class="flex items-center justify-between px-2 py-4 border-b border-slate-200 dark:border-slate-800/60 mb-6">
           <div class="flex items-center gap-3">
@@ -268,11 +268,11 @@
         <div>
           <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Paano ang hatian?</label>
           <div class="grid grid-cols-2 gap-4 mt-1">
-            <label class="flex items-center justify-center gap-2 p-3 bg-slate-5 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900 transition">
+            <label class="flex items-center justify-center gap-2 p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900 transition">
               <input type="radio" name="expense_type" value="Shared" checked onchange="App.toggleSplitMode('Shared')" class="accent-pink-400">
               <span class="font-bold text-slate-700 dark:text-slate-200 text-xs">Shared (Ambagan Crew) 👥</span>
             </label>
-            <label class="flex items-center justify-center gap-2 p-3 bg-slate-5 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900 transition">
+            <label class="flex items-center justify-center gap-2 p-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900 transition">
               <input type="radio" name="expense_type" value="Individual" onchange="App.toggleSplitMode('Individual')" class="accent-pink-400">
               <span class="font-bold text-slate-700 dark:text-slate-200 text-xs">Kanya-kanya 👤</span>
             </label>
