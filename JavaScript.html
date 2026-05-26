@@ -1,0 +1,867 @@
+<script>
+/**
+ * FinTrack Pro Framework - Core Upgraded Embedded Framework Engine Rev v2.6
+ */
+const App = {
+  state: {
+    user: null, rights: null, categories: [], expenses: [], settlements: [], systemUsers: [], activeView: 'dashboard',
+    qrDirectory: [], estimatorLogs: [], themeMode: 'light'
+  },
+
+  init: function() {
+    google.script.run
+      .withSuccessHandler(App.handleInitialStateLoad)
+      .withFailureHandler(App.handleGlobalExceptionRecovery)
+      .getApplicationInitialState();
+  },
+
+  handleInitialStateLoad: function(res) {
+    App.hideGlobalLoader();
+    if (!res || !res.authorized) {
+      document.getElementById('unauthorized-gate').classList.remove('hidden');
+      return;
+    }
+
+    App.state.user = res.userProfile;
+    App.state.rights = res.rights;
+    App.state.categories = res.categories;
+    App.state.systemUsers = res.systemUsers;
+
+    document.getElementById('user-avatar').src = App.state.user.photo || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + App.state.user.name;
+    document.getElementById('user-display-name').innerText = App.state.user.name;
+    document.getElementById('user-display-role').innerText = App.state.user.role === 'Admin' ? 'System Admin' : 'Member';
+
+    App.populateDynamicDropdownFilters();
+    App.hydrateMasterSystemDatasets();
+    document.getElementById('app-container').classList.remove('hidden');
+  },
+
+  resolveUserDisplayName: function(email) {
+    if(!email) return "Unknown Profile";
+    const match = App.state.systemUsers.find(u => u.email.toLowerCase().trim() === email.toLowerCase().trim());
+    return match ? match.name : email;
+  },
+
+  toggleThemeMode: function() {
+    const htmlNode = document.documentElement;
+    const textLabel = document.getElementById('theme-toggle-text');
+    const iconLabel = document.getElementById('theme-toggle-icon');
+    if(!htmlNode) return;
+    
+    if(App.state.themeMode === 'light') {
+      htmlNode.classList.add('dark');
+      if(textLabel) textLabel.innerHTML = `<i class="fas fa-sun mr-2 text-amber-400 animate-pulse"></i>Light Mode`;
+      if(iconLabel) { iconLabel.classList.remove('text-slate-400', 'fa-toggle-off'); iconLabel.classList.add('text-pink-400', 'fa-toggle-on'); }
+      App.state.themeMode = 'dark';
+    } else {
+      htmlNode.classList.remove('dark');
+      if(textLabel) textLabel.innerHTML = `<i class="fas fa-moon mr-2 text-indigo-500"></i>Dark Mode`;
+      if(iconLabel) { iconLabel.classList.remove('text-pink-400', 'fa-toggle-on'); iconLabel.classList.add('text-slate-400', 'fa-toggle-off'); }
+      App.state.themeMode = 'light';
+    }
+  },
+
+  hydrateMasterSystemDatasets: function() {
+    App.showGlobalLoader();
+    const allowed = App.state.rights ? App.state.rights.categories : ["*"];
+    
+    google.script.run.withSuccessHandler(function(expRecords) {
+      App.state.expenses = expRecords || [];
+      
+      google.script.run.withSuccessHandler(function(settleRecords) {
+        App.state.settlements = settleRecords || [];
+        
+        google.script.run.withSuccessHandler(function(qrRecords) {
+          App.state.qrDirectory = qrRecords || [];
+          
+          google.script.run.withSuccessHandler(function(estRecords) {
+            App.state.estimatorLogs = estRecords || [];
+            
+            App.renderActiveViewContext();
+            App.hideGlobalLoader();
+          }).getBudgetEstimatesData();
+        }).getQRDirectoryData();
+      }).getSettlementsData(allowed);
+    }).getExpensesData(allowed);
+  },
+
+  populateDynamicDropdownFilters: function() {
+    const filterCat = document.getElementById('filter-category');
+    const formCat = document.getElementById('form-category');
+    const settleCat = document.getElementById('settle-form-cat');
+    if(!filterCat || !formCat || !settleCat) return;
+    
+    let filterHtml = `<option value="*">All Active Groups</option>`;
+    let genericOptions = '';
+    
+    App.state.categories.forEach(cat => {
+      filterHtml += `<option value="${cat.id}">${cat.name}</option>`;
+      genericOptions += `<option value="${cat.id}" data-name="${cat.name}">${cat.name}</option>`;
+    });
+    
+    filterCat.innerHTML = filterHtml;
+    formCat.innerHTML = genericOptions;
+    settleCat.innerHTML = genericOptions;
+
+    const checkboxTarget = document.getElementById('cat-form-members-checkboxes');
+    if(checkboxTarget) {
+      let checkHtml = '';
+      App.state.systemUsers.forEach(u => {
+        checkHtml += `
+          <label class="flex items-center gap-2 p-1.5 hover:bg-slate-500/10 dark:hover:bg-slate-800/60 rounded cursor-pointer transition">
+            <input type="checkbox" name="cat_members" value="${u.email}" class="accent-pink-400">
+            <span class="truncate text-xs text-slate-700 dark:text-slate-300 font-bold">${u.name}</span>
+          </label>`;
+      });
+      checkboxTarget.innerHTML = checkHtml;
+    }
+    App.handleFormCategoryChange();
+  },
+
+  handleFormCategoryChange: function() {
+    const formCat = document.getElementById('form-category');
+    if(!formCat) return;
+    const selectedCatId = formCat.value;
+    const cat = App.state.categories.find(c => c.id === selectedCatId);
+    const paidByDropdown = document.getElementById('form-paidby');
+    
+    if(!cat || !paidByDropdown) return;
+    let html = '';
+    cat.members.forEach(m => {
+      html += `<option value="${m}">${App.resolveUserDisplayName(m)}</option>`;
+    });
+    paidByDropdown.innerHTML = html;
+    
+    const checkedRadio = document.querySelector('input[name="expense_type"]:checked');
+    App.toggleSplitMode(checkedRadio ? checkedRadio.value : 'Shared');
+  },
+
+  toggleSplitMode: function(mode) {
+    const panel = document.getElementById('splitting-breakdown-panel');
+    const formCat = document.getElementById('form-category');
+    if(!panel || !formCat) return;
+    
+    const catId = formCat.value;
+    const cat = App.state.categories.find(c => c.id === catId);
+    if(!cat) return;
+    
+    let html = '';
+    if(mode === 'Shared') {
+      html = `<div class="p-3 bg-slate-100 dark:bg-slate-950/60 text-slate-600 dark:text-slate-400 rounded-xl border border-slate-200 dark:border-slate-900 text-[11px] italic font-mono"><i class="fas fa-calculator mr-2 text-pink-500 animate-pulse"></i>System will auto-split standard share values across all active group profiles equally.</div>`;
+    } else {
+      cat.members.forEach(m => {
+        html += `
+          <div class="flex items-center justify-between gap-3 p-2 bg-slate-5 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-900">
+            <span class="font-sans font-bold text-slate-600 dark:text-slate-400 truncate w-1/2 text-[11px]">${App.resolveUserDisplayName(m)}</span>
+            <input type="number" step="0.01" data-email="${m}" placeholder="₱ Share amount" class="split-input w-1/2 bg-white dark:bg-slate-900 text-right text-emerald-500 border border-slate-200 dark:border-slate-800 rounded p-1 text-xs focus:outline-none font-bold">
+          </div>`;
+      });
+    }
+    panel.innerHTML = html;
+  },
+
+  switchView: function(viewId) {
+    App.state.activeView = viewId;
+    document.querySelectorAll('.view-pane').forEach(el => el.classList.add('hidden'));
+    document.querySelectorAll('.nav-btn').forEach(el => el.classList.remove('nav-btn-active'));
+    
+    const targetPane = document.getElementById(`view-${viewId}`);
+    if (targetPane) targetPane.classList.remove('hidden');
+    
+    const targetBtn = document.querySelector(`[data-view="${viewId}"]`);
+    if (targetBtn) targetBtn.classList.add('nav-btn-active');
+    
+    const viewTitles = { 'dashboard': 'Dashboard Overview', 'categories': 'Active Groups', 'expenses': 'Lahat ng Gastos History Log', 'settlements': 'Bayaran ng Gastos Panel', 'qrhub': "Members' Payment QR Directory Hub", 'estimator': 'Itinerary Budget & Expense Estimator', 'leaderboard': 'Leaderboard Standings' };
+    const titleHeader = document.getElementById('view-title');
+    if(titleHeader) titleHeader.innerText = viewTitles[viewId] || 'FinTrack';
+    
+    App.renderActiveViewContext();
+  },
+
+  handleFiltersChange: function() { App.renderActiveViewContext(); },
+
+  getFilteredExpenses: function() {
+    const filterCat = document.getElementById('filter-category');
+    const filterDate = document.getElementById('filter-date');
+    const catF = filterCat ? filterCat.value : '*';
+    const dateF = filterDate ? filterDate.value : '*';
+    return App.state.expenses.filter(e => (catF === '*' || e.catId === catF) && (dateF === '*' || e.yearMonth === dateF));
+  },
+
+  getFilteredSettlements: function() {
+    const filterCat = document.getElementById('filter-category');
+    const catF = filterCat ? filterCat.value : '*';
+    return App.state.settlements.filter(s => (catF === '*' || s.catId === catF));
+  },
+
+  // =========================================================================
+  // ADVANCED UPGRADE: RE-ENGINEERED MULTILATERAL DEBT SIMPLIFICATION MATRIX
+  // =========================================================================
+  computeBalanceMatrices: function(expDataset, settleDataset) {
+    const netPositions = {};
+    const myEmail = App.state.user ? App.state.user.email.toLowerCase() : "";
+
+    // Calculate net positions for all users
+    expDataset.forEach(exp => {
+      const payer = exp.paidBy.toLowerCase().trim();
+      exp.breakdown.forEach(p => {
+        const debtor = p.email.toLowerCase().trim();
+        if(payer !== debtor) {
+          netPositions[debtor] = (netPositions[debtor] || 0) - p.share;
+          netPositions[payer] = (netPositions[payer] || 0) + p.share;
+        }
+      });
+    });
+
+    // Account for logged direct settlements
+    settleDataset.forEach(set => {
+      const debtor = set.fromUser.toLowerCase().trim();
+      const creditor = set.toUser.toLowerCase().trim();
+      netPositions[debtor] = (netPositions[debtor] || 0) + set.amount;
+      netPositions[creditor] = (netPositions[creditor] || 0) - set.amount;
+    });
+
+    // Separate debtors and creditors to simplify debt multilaterally
+    const debtors = [];
+    const creditors = [];
+
+    Object.keys(netPositions).forEach(user => {
+      const bal = netPositions[user];
+      if (bal < -0.01) debtors.push({ email: user, amount: Math.abs(bal) });
+      else if (bal > 0.01) creditors.push({ email: user, amount: bal });
+    });
+
+    const optimizedDebtRelations = [];
+    let myCalculatedDebt = 0;
+    let myCalculatedReceivables = 0;
+
+    let dIdx = 0, cIdx = 0;
+    while (dIdx < debtors.length && cIdx < creditors.length) {
+      const debtor = debtors[dIdx];
+      const creditor = creditors[cIdx];
+      
+      const settlementAmount = Math.min(debtor.amount, creditor.amount);
+      
+      if (settlementAmount > 0.01) {
+        optimizedDebtRelations.push({ from: debtor.email, to: creditor.email, amount: settlementAmount });
+        
+        if (debtor.email === myEmail) myCalculatedDebt += settlementAmount;
+        if (creditor.email === myEmail) myCalculatedReceivables += settlementAmount;
+      }
+
+      debtor.amount -= settlementAmount;
+      creditor.amount -= settlementAmount;
+
+      if (debtor.amount <= 0.01) dIdx++;
+      if (creditor.amount <= 0.01) cIdx++;
+    }
+
+    return {
+      simplifiedDebts: optimizedDebtRelations,
+      myDebtList: optimizedDebtRelations.filter(d => d.from === myEmail),
+      myReceivablesList: optimizedDebtRelations.filter(d => d.to === myEmail),
+      totalDebt: myCalculatedDebt,
+      totalReceivables: myCalculatedReceivables
+    };
+  },
+
+  renderActiveViewContext: function() {
+    const expData = App.getFilteredExpenses();
+    const setData = App.getFilteredSettlements();
+    const matrices = App.computeBalanceMatrices(expData, setData);
+
+    switch(App.state.activeView) {
+      case 'dashboard': App.renderDashboardView(expData, matrices); break;
+      case 'categories': App.renderCategoriesGrid(); break;
+      case 'expenses': App.renderExpensesTable(expData); break;
+      case 'settlements': App.renderSettlementsModule(matrices); break;
+      case 'qrhub': App.renderQRDirectoryModule(); break;
+      case 'estimator': App.renderEstimatorModule(); break;
+      case 'leaderboard': App.renderLeaderboardView(expData); break;
+    }
+  },
+
+  renderDashboardView: function(expData, matrices) {
+    let grossSystemSpend = 0;
+    let myAbonoTotal = 0;
+    const myEmail = App.state.user ? App.state.user.email.toLowerCase() : "";
+
+    expData.forEach(e => {
+      grossSystemSpend += e.amount;
+      if(e.paidBy === myEmail) myAbonoTotal += e.amount;
+    });
+
+    const statTotal = document.getElementById('stat-total');
+    const statAbono = document.getElementById('stat-my-abono');
+    const statDebt = document.getElementById('stat-my-debt');
+    const statRec = document.getElementById('stat-my-receivables');
+
+    if(statTotal) statTotal.innerText = '₱' + grossSystemSpend.toLocaleString('en-US', {minimumFractionDigits:2});
+    if(statAbono) statAbono.innerText = '₱' + myAbonoTotal.toLocaleString('en-US', {minimumFractionDigits:2});
+    if(statDebt) statDebt.innerText = '₱' + matrices.totalDebt.toLocaleString('en-US', {minimumFractionDigits:2});
+    if(statRec) statRec.innerText = '₱' + matrices.totalReceivables.toLocaleString('en-US', {minimumFractionDigits:2});
+
+    const netTarget = document.getElementById('dashboard-net-breakdown');
+    if(!netTarget) return;
+
+    let debtHtml = '<div><p class="text-xs text-rose-500 font-black mb-2 flex items-center gap-1.5"><i class="fas fa-heart-crack text-xs"></i> Utang mo sa ibang members</p><div class="space-y-2">';
+    let receiveHtml = '<div><p class="text-xs text-teal-600 dark:text-teal-400 font-black mb-2 flex items-center gap-1.5"><i class="fas fa-handholding-heart text-xs"></i> Sisingilin mo sa kanila</p><div class="space-y-2">';
+
+    matrices.myDebtList.forEach(d => {
+      // UPGRADE INTERACTION: Adds dynamic inline trigger to launch QR Scanner for the targeted creditor user profile
+      debtHtml += `
+        <div class="bg-slate-50 dark:bg-slate-950/60 p-2.5 rounded-xl border border-slate-200 dark:border-slate-900 flex justify-between items-center text-xs text-slate-700 dark:text-slate-300">
+          <span>Owe to <b class="font-sans font-black text-slate-900 dark:text-white">${App.resolveUserDisplayName(d.to)}</b></span>
+          <div class="flex items-center gap-2 font-mono">
+            <span class="text-rose-500 font-black">₱${d.amount.toFixed(2)}</span>
+            <button onclick="App.launchDirectQRViewer('${d.to}')" class="bg-indigo-500/10 hover:bg-indigo-500 hover:text-white border border-indigo-500/20 px-1.5 py-0.5 rounded text-[10px] font-sans transition"><i class="fas fa-qrcode"></i> Scan QR</button>
+          </div>
+        </div>`;
+    });
+    if(matrices.myDebtList.length === 0) debtHtml += `<p class="text-slate-400 italic text-[11px] p-2 bg-slate-55 dark:bg-slate-950/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">All settled! Naks! Wala syang utang ngayon! ✨</p>`;
+    debtHtml += '</div></div>';
+
+    matrices.myReceivablesList.forEach(r => {
+      receiveHtml += `<div class="bg-slate-50 dark:bg-slate-950/60 p-2.5 rounded-xl border border-slate-200 dark:border-slate-900 flex justify-between font-mono text-xs text-slate-700 dark:text-slate-300"><span>Collect from <b class="font-sans font-black text-slate-900 dark:text-white">${App.resolveUserDisplayName(r.from)}</b></span><span class="text-teal-500 font-black">₱${r.amount.toFixed(2)}</span></div>`;
+    });
+    if(matrices.myReceivablesList.length === 0) receiveHtml += `<p class="text-slate-400 italic text-[11px] p-2 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-dashed border-slate-200 dark:border-slate-800">Walang dapat singilin for now. Chill ka lang.</p>`;
+    receiveHtml += '</div></div>';
+
+    netTarget.innerHTML = debtHtml + receiveHtml;
+  },
+
+  renderCategoriesGrid: function() {
+    const grid = document.getElementById('categories-grid-target');
+    if(!grid) return;
+    let html = '';
+    
+    App.state.categories.forEach(cat => {
+      html += `
+        <div class="bg-white dark:bg-slate-900/30 p-5 rounded-3xl border border-slate-200 dark:border-slate-900 flex flex-col justify-between space-y-4 shadow-sm dark:shadow-none hover:shadow-md transition duration-200">
+          <div>
+            <div class="flex items-center justify-between">
+              <span class="px-2 py-0.5 font-mono text-[9px] bg-pink-500/10 text-pink-600 dark:text-pink-400 rounded-md uppercase border border-pink-500/20 font-bold">${cat.type}</span>
+              <span class="text-[10px] text-slate-400 font-mono">${cat.id}</span>
+            </div>
+            <h4 class="text-sm font-black text-slate-900 dark:text-white mt-2 flex items-center gap-1.5"><i class="fas fa-umbrella-beach text-amber-400"></i> ${cat.name}</h4>
+            <p class="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">${cat.description || 'No summary notes written.'}</p>
+          </div>
+          <div class="border-t border-slate-100 dark:border-slate-800/60 pt-3 flex items-center justify-between">
+            <span class="text-[10px] font-mono text-slate-400 font-bold"><i class="fas fa-user-group text-purple-400 mr-1"></i>${cat.members.length} Members</span>
+            <button onclick="App.focusCategoryScope('${cat.id}')" class="text-[10px] bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950 rounded-xl px-3 py-1.5 font-black hover:bg-pink-500 dark:hover:bg-pink-400 dark:hover:text-white shadow-sm transition duration-300">Open Group 🚀</button>
+          </div>
+        </div>`;
+    });
+    grid.innerHTML = html || `<p class="text-slate-400 italic text-xs col-span-3 text-center py-8">Wala pang active groups mapped.</p>`;
+  },
+
+  focusCategoryScope: function(catId) {
+    const filterCat = document.getElementById('filter-category');
+    if(filterCat) {
+      filterCat.value = catId; 
+      App.switchView('dashboard'); 
+    }
+  },
+
+  renderExpensesTable: function(data) {
+    const body = document.getElementById('expenses-table-body');
+    if(!body) return;
+    let html = '';
+    
+    if(data.length === 0) {
+      body.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-slate-400 dark:text-slate-500 font-mono tracking-wider">No matching expenses found.</td></tr>`;
+      return;
+    }
+
+    data.forEach(exp => {
+      const cat = App.state.categories.find(c => c.id === exp.catId) || { name: "Global Master" };
+      const casualTypeLabel = exp.type === 'Shared' ? 'Shared 👥' : 'Kanya-kanya 👤';
+      const casualClassTag = exp.type === 'Shared' ? 'text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/30' : 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30';
+
+      html += `
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition text-slate-700 dark:text-slate-300">
+          <td class="p-4">
+            <div class="font-black text-slate-900 dark:text-white">${exp.title}</div>
+            <div class="text-[10px] text-slate-400 font-mono">${exp.date} // ${exp.id}</div>
+          </td>
+          <td class="p-4"><span class="px-2 py-0.5 text-[10px] bg-slate-50 dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 rounded-lg font-bold">${cat.name}</span></td>
+          <td class="p-4 font-mono font-bold text-slate-900 dark:text-emerald-400">₱${exp.amount.toFixed(2)}</td>
+          <td class="p-4 text-[11px]"><span class="px-2 py-0.5 rounded-full font-bold text-[10px] ${casualClassTag}">${casualTypeLabel}</span></td>
+          <td class="p-4 text-[11px] font-sans font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5"><i class="fas fa-user-astronaut text-[10px] text-purple-400"></i> ${App.resolveUserDisplayName(exp.paidBy)}</td>
+          <td class="p-4 text-right">
+             <button onclick="App.inspectMatrixBreakdown('${exp.id}')" class="text-[10px] font-bold text-slate-600 dark:text-slate-400 hover:text-pink-500 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm dark:shadow-none transition hover:border-pink-400">
+               <i class="fas fa-eye mr-1"></i> View Splitting
+             </button>
+          </td>
+        </tr>`;
+    });
+    body.innerHTML = html;
+  },
+
+  inspectMatrixBreakdown: function(expenseId) {
+    const exp = App.state.expenses.find(e => e.id === expenseId);
+    if (!exp) return;
+
+    const contentTarget = document.getElementById('breakdown-modal-content');
+    if(!contentTarget) return;
+    let html = '';
+
+    exp.breakdown.forEach(item => {
+      const isPaid = item.status === 'Paid';
+      html += `
+        <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-slate-900">
+          <div class="overflow-hidden pr-2">
+            <p class="text-xs font-bold text-slate-800 dark:text-slate-200 truncate">${App.resolveUserDisplayName(item.email)}</p>
+            <p class="text-[9px] font-sans ${isPaid ? 'text-emerald-600 dark:text-emerald-400 font-bold' : 'text-rose-500 dark:text-rose-400'} uppercase mt-0.5 font-bold">
+              <i class="fas ${isPaid ? 'fa-circle-check' : 'fa-circle-dot'} mr-1"></i>${isPaid ? 'Bayad na' : 'Sisingilin pa'}
+            </p>
+          </div>
+          <span class="text-xs font-mono font-black ${isPaid ? 'text-slate-400 dark:text-slate-500' : 'text-rose-500'}">
+            ₱${item.share.toFixed(2)}
+          </span>
+        </div>`;
+    });
+
+    contentTarget.innerHTML = html;
+    App.openModal('breakdown-modal');
+  },
+
+  renderSettlementsModule: function(matrices) {
+    const cardsContainer = document.getElementById('settlement-simplification-cards');
+    if(!cardsContainer) return;
+    let html = '';
+
+    matrices.myDebtList.forEach(d => {
+      html += `
+        <div class="bg-white dark:bg-rose-950/5 border border-slate-200 dark:border-rose-500/20 p-4 rounded-3xl flex flex-col justify-between space-y-4 shadow-sm dark:shadow-none hover:shadow-md transition">
+          <div>
+            <p class="text-[9px] font-mono text-rose-500 uppercase tracking-widest font-bold flex items-center gap-1"><i class="fas fa-circle-exclamation"></i> Unpaid Liability</p>
+            <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">You owe <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(d.to)}</b></h4>
+          </div>
+          <div class="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-3">
+            <span class="text-sm font-mono font-black text-rose-500">₱${d.amount.toFixed(2)}</span>
+            <div class="flex items-center gap-1.5">
+              <button onclick="App.launchDirectQRViewer('${d.to}')" class="bg-indigo-500 text-white text-[10px] font-black px-2.5 py-1.5 rounded-xl transition hover:bg-indigo-400"><i class="fas fa-qrcode"></i> Scan QR</button>
+              <button onclick="App.initiateSettlementAction('${d.to}', ${d.amount})" class="bg-rose-500 text-white dark:text-slate-950 text-[10px] font-black px-3 py-1.5 rounded-xl uppercase transition hover:bg-rose-400 shadow-sm shadow-rose-500/10">Pay Now 💸</button>
+            </div>
+          </div>
+        </div>`;
+    });
+
+    matrices.myReceivablesList.forEach(r => {
+      html += `
+        <div class="bg-white dark:bg-teal-950/5 border border-slate-200 dark:border-teal-500/20 p-4 rounded-3xl flex flex-col justify-between space-y-4 shadow-sm dark:shadow-none hover:shadow-md transition">
+          <div>
+            <p class="text-[9px] font-mono text-teal-500 tracking-widest font-bold flex items-center gap-1"><i class="fas fa-bell-ring animate-bounce text-xs"></i> Awaiting Collection</p>
+            <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">Dapat kang bayaran ni <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(r.from)}</b></h4>
+          </div>
+          <div class="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-3">
+            <span class="text-sm font-mono font-black text-teal-600 dark:text-teal-400">₱${r.amount.toFixed(2)}</span>
+            <button onclick="App.initiateSettlementAction('${r.from}', ${r.amount}, true)" class="bg-teal-500 text-white dark:text-slate-950 text-[10px] font-black px-3 py-1.5 rounded-xl transition hover:bg-teal-400 shadow-sm shadow-teal-500/10">Nagbayad na sya! 🎉</button>
+          </div>
+        </div>`;
+    });
+
+    cardsContainer.innerHTML = html || `<p class="text-slate-400 italic text-xs text-center col-span-3 py-8 bg-white dark:bg-slate-900/20 p-4 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">All settled! Naks! Wala syang utang ngayon! ✨</p>`;
+  },
+
+  // =========================================================================
+  // UPGRADE 1: QR HUB PLATFORM RENDER ENGINE
+  // =========================================================================
+  renderQRDirectoryModule: function() {
+    const grid = document.getElementById('qr-directory-grid-target');
+    if(!grid) return;
+    let html = '';
+    
+    App.state.systemUsers.forEach(user => {
+      const qrData = App.state.qrDirectory.find(q => q.email === user.email);
+      html += `
+        <div class="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-900 p-4 rounded-3xl text-center flex flex-col justify-between items-center shadow-sm">
+          <div class="space-y-2">
+            <div class="relative h-12 w-12 mx-auto rounded-full bg-gradient-to-tr from-pink-300 to-indigo-300 p-0.5">
+              <div class="w-full h-full rounded-full bg-white dark:bg-slate-900 flex items-center justify-center text-xs font-bold">${user.name.substring(0,2)}</div>
+            </div>
+            <h4 class="text-xs font-black text-slate-900 dark:text-white truncate max-w-[140px] mx-auto">${user.name}</h4>
+            <span class="text-[9px] font-mono font-bold uppercase ${qrData ? 'bg-indigo-500/10 text-indigo-500 border border-indigo-500/20' : 'bg-slate-200 text-slate-500'} px-2 py-0.5 rounded-md">
+              ${qrData ? qrData.bank : 'No Data yet'}
+            </span>
+          </div>
+          
+          <div class="mt-4 w-full">
+            ${qrData ? `
+              <button onclick="App.launchDirectQRViewer('${user.email}')" class="w-full bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 font-bold py-1.5 rounded-xl text-[10px] uppercase tracking-wider transition hover:bg-pink-500 dark:hover:bg-pink-400 dark:hover:text-white"><i class="fas fa-expand mr-1"></i> View QR code</button>
+            ` : `
+              <p class="text-[10px] text-slate-400 italic">No channel registered.</p>
+            `}
+          </div>
+        </div>`;
+    });
+    grid.innerHTML = html;
+  },
+
+  launchDirectQRViewer: function(email) {
+    const qr = App.state.qrDirectory.find(q => q.email.toLowerCase().trim() === email.toLowerCase().trim());
+    if(!qr) {
+      alert("Notice: Sintu-sinto! Wala pang sinesave na QR Code image si " + App.resolveUserDisplayName(email) + " sa payment registry.");
+      return;
+    }
+    
+    document.getElementById('qr-viewer-name').innerText = App.resolveUserDisplayName(email);
+    document.getElementById('qr-viewer-bank').innerText = qr.bank + " // Directory";
+    document.getElementById('qr-viewer-number').innerText = qr.number;
+    document.getElementById('qr-viewer-img').src = qr.url;
+    
+    App.openModal('qr-viewer-modal');
+  },
+
+  // =========================================================================
+  // UPGRADE 2: TENTATIVE PIPELINE ESTIMATOR RENDER ENGINE
+  // =========================================================================
+  renderEstimatorModule: function() {
+    const activeCatId = document.getElementById('filter-category').value;
+    const currentCatObj = App.state.categories.find(c => c.id === activeCatId) || App.state.categories[0];
+    
+    const body = document.getElementById('estimator-table-body');
+    if(!body || !currentCatObj) return;
+    
+    const filteredLines = App.state.estimatorLogs.filter(e => e.catId === currentCatObj.id);
+    let html = '';
+    let sumTotalEstimates = 0;
+    
+    filteredLines.forEach(line => {
+      sumTotalEstimates += line.amount;
+      const shareCheck = line.amount / currentCatObj.members.length;
+      html += `
+        <tr class="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition text-slate-700 dark:text-slate-300">
+          <td class="p-4 font-bold text-slate-900 dark:text-white"><i class="fas fa-signs-post text-orange-400 mr-2"></i>${line.title}</td>
+          <td class="p-4 font-mono font-semibold">₱${line.amount.toFixed(2)}</td>
+          <td class="p-4 text-right font-mono font-bold text-purple-500">₱${shareCheck.toFixed(2)} / head</td>
+        </tr>`;
+    });
+    
+    body.innerHTML = html || `<tr><td colspan="3" class="p-8 text-center text-slate-400 italic">No targets proposed yet for ${currentCatObj.name}. Add one po!</td></tr>`;
+    
+    document.getElementById('est-total-cost').innerText = '₱' + sumTotalEstimates.toLocaleString('en-US', {minimumFractionDigits:2});
+    document.getElementById('est-member-count').innerText = currentCatObj.members.length + " pax";
+    
+    const absoluteFinalPerHead = sumTotalEstimates / currentCatObj.members.length;
+    document.getElementById('est-final-per-head').innerText = '₱' + absoluteFinalPerHead.toLocaleString('en-US', {minimumFractionDigits:2});
+  },
+
+  // =========================================================================
+  // UPGRADE 3: FUN "SINO ANG TAYA?" SPINNING WHEEL ALGORITHM
+  // =========================================================================
+  openPayerGeneratorWheel: function() {
+    const activeCatId = document.getElementById('filter-category').value;
+    const cat = App.state.categories.find(c => c.id === activeCatId) || App.state.categories[0];
+    if(!cat) return;
+    
+    const poolTarget = document.getElementById('wheel-members-pool');
+    let html = '';
+    cat.members.forEach(m => {
+      html += `
+        <label class="flex items-center gap-1.5 p-1 hover:bg-slate-100 dark:hover:bg-slate-900 rounded cursor-pointer transition text-xs font-bold">
+          <input type="checkbox" name="wheel_pool" value="${m}" checked class="accent-purple-500">
+          <span class="truncate max-w-[100px]">${App.resolveUserDisplayName(m)}</span>
+        </label>`;
+    });
+    poolTarget.innerHTML = html;
+    document.getElementById('wheel-spinner-result').className = "text-xs font-bold text-slate-400 animate-pulse";
+    document.getElementById('wheel-spinner-result').innerText = "Piliin ang kasama sa table tapos click Spin!";
+    App.openModal('wheel-modal');
+  },
+
+  spinRandomPayerWheel: function() {
+    const checkedBoxes = document.querySelectorAll('input[name="wheel_pool"]:checked');
+    const selectedPool = [];
+    checkedBoxes.forEach(box => selectedPool.push(box.value));
+    
+    if(selectedPool.length === 0) {
+      alert("Hala! Pumili ka muna ng kahit isang tropa na kasama sa pool."); return;
+    }
+    
+    const labelResult = document.getElementById('wheel-spinner-result');
+    labelResult.className = "text-xs font-mono font-black text-pink-500 tracking-widest animate-bounce";
+    labelResult.innerText = "SHUFFLING SPINNERS MATRICES... ⚡";
+    
+    let counterLoops = 0;
+    const intervalTimer = setInterval(() => {
+      const mockPick = selectedPool[Math.floor(Math.random() * selectedPool.length)];
+      labelResult.innerText = "🎲 " + App.resolveUserDisplayName(mockPick).toUpperCase();
+      counterLoops++;
+      
+      if(counterLoops > 18) {
+        clearInterval(intervalTimer);
+        const finalWinnerPick = selectedPool[Math.floor(Math.random() * selectedPool.length)];
+        labelResult.className = "text-md font-black text-white dark:text-slate-950 bg-gradient-to-r from-pink-500 to-purple-500 px-4 py-2 rounded-2xl shadow-md uppercase tracking-wider scale-110 transition-transform font-sans";
+        labelResult.innerHTML = `🎉 ${App.resolveUserDisplayName(finalWinnerPick)} ANG TAYA ngayon! 💸`;
+      }
+    }, 110);
+  },
+
+  initiateSettlementAction: function(peerEmail, exactAmt, isReceivable = false) {
+    App.openModal('settle-modal');
+    const fromSelect = document.getElementById('settle-form-from');
+    const toSelect = document.getElementById('settle-form-to');
+    const amtInput = document.getElementById('settle-form-amount');
+    const dateInput = document.getElementById('settle-form-date');
+    const myEmail = App.state.user ? App.state.user.email : "";
+
+    if(fromSelect) fromSelect.innerHTML = `<option value="${isReceivable ? peerEmail : myEmail}">${App.resolveUserDisplayName(isReceivable ? peerEmail : myEmail)}</option>`;
+    if(toSelect) toSelect.innerHTML = `<option value="${isReceivable ? myEmail : peerEmail}">${App.resolveUserDisplayName(isReceivable ? myEmail : peerEmail)}</option>`;
+    if(amtInput) amtInput.value = exactAmt.toFixed(2);
+    if(dateInput) dateInput.value = new Date().toISOString().substring(0,10);
+  },
+
+  renderLeaderboardView: function(expData) {
+    const container = document.getElementById('leaderboard-container');
+    if(!container) return;
+    const userAggMap = {};
+
+    expData.forEach(exp => {
+      const payer = exp.paidBy;
+      if(!userAggMap[payer]) userAggMap[payer] = { email: payer, grossSpend: 0, totalAbono: 0, debtExposures: 0 };
+      userAggMap[payer].totalAbono += exp.amount;
+
+      exp.breakdown.forEach(p => {
+        const dEmail = p.email;
+        if(!userAggMap[dEmail]) userAggMap[dEmail] = { email: dEmail, grossSpend: 0, totalAbono: 0, debtExposures: 0 };
+        userAggMap[dEmail].grossSpend += p.share;
+        if(payer !== dEmail) userAggMap[dEmail].debtExposures += p.share;
+      });
+    });
+
+    const sortedByAbono = Object.values(userAggMap).sort((a,b) => b.totalAbono - a.totalAbono);
+    const maxAbono = sortedByAbono[0] ? sortedByAbono[0].totalAbono : 1;
+
+    let html = '<h3 class="text-xs font-mono tracking-widest uppercase text-slate-800 dark:text-white mb-6"><i class="fas fa-trophy text-amber-400 animate-pulse text-sm"></i> Leaderboard: Top Tagasalo (King of Abono)</h3><div class="space-y-6">';
+    sortedByAbono.forEach((user, i) => {
+      const pct = (user.totalAbono / maxAbono) * 100;
+      html += `
+        <div class="space-y-1">
+          <div class="flex justify-between text-xs font-mono text-slate-600 dark:text-slate-400">
+            <span><b class="text-slate-400 dark:text-slate-500">#${i+1}</b> ${App.resolveUserDisplayName(user.email)}</span>
+            <span>Total Abono: <b class="text-emerald-500 font-sans font-black">₱${user.totalAbono.toLocaleString('en-US',{minimumFractionDigits:2})}</b></span>
+          </div>
+          <div class="w-full bg-slate-100 dark:bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800 p-0.5 shadow-inner">
+            <div class="h-full bg-gradient-to-r from-pink-400 to-purple-400 rounded-full transition-all duration-1000 ease-out" style="width: ${pct}%"></div>
+          </div>
+          <div class="flex justify-between text-[10px] font-mono text-slate-400 px-1">
+            <span>Personal Share: ₱${user.grossSpend.toFixed(2)}</span>
+            <span>Inabono for others: ₱${user.debtExposures.toFixed(2)}</span>
+          </div>
+        </div>`;
+    });
+    container.innerHTML = html + '</div>';
+  },
+
+  openModal: function(id) { 
+    const el = document.getElementById(id);
+    if(el) el.classList.remove('hidden'); 
+  },
+  
+  closeModal: function(id) { 
+    const el = document.getElementById(id);
+    if(el) el.classList.add('hidden'); 
+  },
+
+  syncSplittingForm: function() {
+    const checkedRadio = document.querySelector('input[name="expense_type"]:checked');
+    if(checkedRadio && checkedRadio.value === 'Individual') App.toggleSplitMode('Individual');
+  },
+
+  handleExpenseSubmit: function(e) {
+    e.preventDefault();
+    App.showGlobalLoader();
+    
+    const catSel = document.getElementById('form-category');
+    if(!catSel) return;
+    
+    const selectedOpt = catSel.options[catSel.selectedIndex];
+    const catId = catSel.value;
+    const cat = App.state.categories.find(c => c.id === catId);
+    const amountEl = document.getElementById('form-amount');
+    const dateEl = document.getElementById('form-date');
+    const titleEl = document.getElementById('form-title');
+    const paidByEl = document.getElementById('form-paidby');
+    const checkedRadio = document.querySelector('input[name="expense_type"]:checked');
+    
+    if(!cat || !amountEl || !dateEl || !titleEl || !paidByEl || !checkedRadio) return;
+    
+    const grossAmt = parseFloat(amountEl.value);
+    const expType = checkedRadio.value;
+    const payerEmail = paidByEl.value.toLowerCase();
+    
+    let computedBreakdown = [];
+
+    if(expType === 'Shared') {
+      const shareCount = cat.members.length;
+      const splitValue = Math.round((grossAmt / shareCount) * 100) / 100;
+      cat.members.forEach((m, idx) => {
+        const finalShare = idx === shareCount - 1 ? (grossAmt - (splitValue * (shareCount - 1))) : splitValue;
+        computedBreakdown.push({
+          email: m.toLowerCase(), share: finalShare, status: m.toLowerCase() === payerEmail ? "Paid" : "Unpaid"
+        });
+      });
+    } else {
+      let customSum = 0;
+      const inputs = document.querySelectorAll('.split-input');
+      inputs.forEach(inp => {
+        const inputVal = parseFloat(inp.value) || 0;
+        customSum += inputVal;
+        const emailKey = inp.getAttribute('data-email').toLowerCase();
+        computedBreakdown.push({
+          email: emailKey, share: inputVal, status: emailKey === payerEmail ? "Paid" : "Unpaid"
+        });
+      });
+      
+      if(Math.abs(customSum - grossAmt) > 0.05) {
+        alert("Ops! Mali ang computation. Ang sum ng inputs (₱" + customSum + ") must exactly match the total amount (₱" + grossAmt + ").");
+        App.hideGlobalLoader();
+        return;
+      }
+    }
+
+    const payload = {
+      catId: catId, categoryName: selectedOpt.getAttribute('data-name'), title: titleEl.value,
+      amount: grossAmt, date: dateEl.value, type: expType, paidBy: payerEmail, breakdown: computedBreakdown
+    };
+
+    google.script.run
+      .withSuccessHandler(function() {
+        App.closeModal('expense-modal');
+        const expForm = document.getElementById('expense-form');
+        if(expForm) expForm.reset();
+        App.hydrateMasterSystemDatasets();
+      })
+      .withFailureHandler(App.handleGlobalExceptionRecovery)
+      .commitExpenseRow(payload);
+  },
+
+  handleCategorySubmit: function(e) {
+    e.preventDefault();
+    App.showGlobalLoader();
+    
+    const checkedBoxes = document.querySelectorAll('input[name="cat_members"]:checked');
+    const myEmail = App.state.user ? App.state.user.email.toLowerCase() : "";
+    const assignedMembers = [myEmail];
+    
+    checkedBoxes.forEach(box => {
+      const emailVal = box.value.toLowerCase();
+      if(!assignedMembers.includes(emailVal)) assignedMembers.push(emailVal);
+    });
+
+    const nameEl = document.getElementById('cat-form-name');
+    const descEl = document.getElementById('cat-form-desc');
+    const typeEl = document.getElementById('cat-form-type');
+    
+    if(!nameEl || !descEl || !typeEl) return;
+
+    const payload = {
+      name: nameEl.value, description: descEl.value, type: typeEl.value,
+      createdBy: myEmail, members: assignedMembers
+    };
+
+    google.script.run
+      .withSuccessHandler(function() {
+        App.closeModal('category-modal');
+        const catForm = document.getElementById('category-form');
+        if(catForm) catForm.reset();
+        
+        google.script.run
+          .withSuccessHandler(App.handleInitialStateLoad)
+          .withFailureHandler(App.handleGlobalExceptionRecovery)
+          .getApplicationInitialState();
+      })
+      .withFailureHandler(App.handleGlobalExceptionRecovery)
+      .createNewCategoryWorkspace(payload);
+  },
+
+  handleSettlementSubmit: function(e) {
+    e.preventDefault();
+    App.showGlobalLoader();
+    
+    const catEl = document.getElementById('settle-form-cat');
+    const fromEl = document.getElementById('settle-form-from');
+    const toEl = document.getElementById('settle-form-to');
+    const amtEl = document.getElementById('settle-form-amount');
+    const dateEl = document.getElementById('settle-form-date');
+    
+    if(!catEl || !fromEl || !toEl || !amtEl || !dateEl) return;
+
+    const payload = {
+      catId: catEl.value, fromUser: fromEl.value, toUser: toEl.value,
+      amount: parseFloat(amtEl.value), date: dateEl.value, proof: ""
+    };
+
+    google.script.run
+      .withSuccessHandler(function() {
+        App.closeModal('settle-modal');
+        const settleForm = document.getElementById('settle-form');
+        if(settleForm) settleForm.reset();
+        App.hydrateMasterSystemDatasets();
+      })
+      .withFailureHandler(App.handleGlobalExceptionRecovery)
+      .recordDirectSettlement(payload);
+  },
+
+  handleQRDirectoryRegisterSubmit: function(e) {
+    e.preventDefault();
+    App.showGlobalLoader();
+    
+    const payload = {
+      email: App.state.user.email,
+      bank: document.getElementById('qr-form-bank').value,
+      number: document.getElementById('qr-form-number').value,
+      url: document.getElementById('qr-form-url').value
+    };
+
+    google.script.run
+      .withSuccessHandler(function() {
+        App.closeModal('qr-upload-modal');
+        document.getElementById('qr-upload-form').reset();
+        App.hydrateMasterSystemDatasets();
+      })
+      .withFailureHandler(App.handleGlobalExceptionRecovery)
+      .saveQRHubRecord(payload);
+  },
+
+  handleEstimatorLineSubmit: function(e) {
+    e.preventDefault();
+    App.showGlobalLoader();
+    
+    const activeCatId = document.getElementById('filter-category').value;
+    const payload = {
+      catId: activeCatId === '*' ? App.state.categories[0].id : activeCatId,
+      title: document.getElementById('est-form-title').value,
+      amount: parseFloat(document.getElementById('est-form-amount').value)
+    };
+
+    google.script.run
+      .withSuccessHandler(function() {
+        App.closeModal('estimator-modal');
+        document.getElementById('estimator-form').reset();
+        App.hydrateMasterSystemDatasets();
+      })
+      .withFailureHandler(App.handleGlobalExceptionRecovery)
+      .commitEstimatorProposedLine(payload);
+  },
+
+  showGlobalLoader: function() {
+    const loader = document.getElementById('app-loader');
+    if(loader) loader.classList.remove('hidden');
+  },
+
+  hideGlobalLoader: function() {
+    const loader = document.getElementById('app-loader');
+    if(loader) loader.classList.add('hidden');
+  },
+
+  handleGlobalExceptionRecovery: function(err) {
+    App.hideGlobalLoader();
+    alert("Notice: " + (err.message || err));
+  }
+};
+
+window.addEventListener('DOMContentLoaded', () => App.init());
+</script>
