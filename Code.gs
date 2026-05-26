@@ -133,7 +133,7 @@ const DatabaseController = {
           } catch(e) {
             members = [];
           }
-          output.push({ id: catId, name: data[i][1], description: data[i][2], members: members });
+          output.push({ id: catId, name: data[i][1], description: data[i][2], members: members, createdBy: data[i][3], type: data[i][5] });
         }
       }
     }
@@ -161,7 +161,8 @@ const DatabaseController = {
           id: data[i][0], catId: catId, title: data[i][2], amount: parseFloat(data[i][3]) || 0,
           type: data[i][4], date: data[i][5] ? Utilities.formatDate(new Date(data[i][5]), Session.getScriptTimeZone(), "yyyy-MM-dd") : "",
           yearMonth: data[i][6] ? String(data[i][6]).trim() : "", paidBy: data[i][7] ? String(data[i][7]).toLowerCase().trim() : "", 
-          breakdown: cleanBreakdown, receipt: data[i][9] || ""
+          breakdown: cleanBreakdown, receipt: data[i][9] || "",
+          recordedBy: data[i][10] || ""
         });
       }
     }
@@ -246,12 +247,13 @@ const DatabaseController = {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
       const masterSheet = ss.getSheetByName("EXPENSES_MASTER");
       const categorySheet = ss.getSheetByName(expenseObj.categoryName);
+      const activeUser = Session.getActiveUser().getEmail().toLowerCase();
       
       const newId = "EXP_" + new Date().getFullYear() + "_" + Math.floor(10000 + Math.random() * 90000);
       const rowData = [
         newId, expenseObj.catId, expenseObj.title, expenseObj.amount, expenseObj.type,
         expenseObj.date, expenseObj.date.substring(0,7), expenseObj.paidBy.toLowerCase(),
-        JSON.stringify(expenseObj.breakdown), expenseObj.receipt || ""
+        JSON.stringify(expenseObj.breakdown), expenseObj.receipt || "", activeUser
       ];
       
       masterSheet.appendRow(rowData);
@@ -362,7 +364,7 @@ function getBudgetEstimatesData() {
   const data = sheet.getDataRange().getValues();
   const list = [];
   for(let i = 1; i < data.length; i++) {
-    list.push({ id: data[i][0], catId: data[i][1], title: data[i][2], amount: parseFloat(data[i][3]) || 0 });
+    list.push({ id: data[i][0], catId: data[i][1], title: data[i][2], amount: parseFloat(data[i][3]) || 0, recordedBy: data[i][4] || "" });
   }
   return list;
 }
@@ -405,6 +407,252 @@ function saveQRHubRecord(payload) {
   }
 }
 
+function updateQRHubRecord(payload) {
+  return saveQRHubRecord(payload);
+}
+
+function deleteQRHubRecord(email) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName("MEMBERS_PAYMENT_HUB");
+    if(!sheet) throw new Error("Missing tab: MEMBERS_PAYMENT_HUB");
+
+    const data = sheet.getDataRange().getValues();
+    for(let i = 1; i < data.length; i++) {
+      if(data[i][0].toLowerCase().trim() === email.toLowerCase().trim()) {
+        sheet.deleteRow(i + 1);
+        return { success: true };
+      }
+    }
+    return { success: false, message: "Record not found" };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function updateCategoryWorkspace(payload) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const catMaster = ss.getSheetByName("CATEGORY_MASTER");
+    const data = catMaster.getDataRange().getValues();
+
+    let rowIdx = -1;
+    for(let i = 1; i < data.length; i++) {
+      if(data[i][0] === payload.id) {
+        rowIdx = i + 1; break;
+      }
+    }
+
+    if(rowIdx === -1) throw new Error("Category not found");
+
+    catMaster.getRange(rowIdx, 2).setValue(payload.name);
+    catMaster.getRange(rowIdx, 3).setValue(payload.description);
+    catMaster.getRange(rowIdx, 5).setValue(JSON.stringify(payload.members));
+    catMaster.getRange(rowIdx, 6).setValue(payload.type);
+
+    // Update access rights for all members (simplified: add missing ones)
+    const accessSheet = ss.getSheetByName("ACCESS_RIGHTS");
+    const accessData = accessSheet.getDataRange().getValues();
+
+    payload.members.forEach(memberEmail => {
+      let matched = false;
+      for(let r = 1; r < accessData.length; r++) {
+        if(accessData[r][0].toLowerCase() === memberEmail.toLowerCase()) {
+          let existingCats = [];
+          try {
+            existingCats = accessData[r][1] ? JSON.parse(accessData[r][1]) : [];
+          } catch(e) { existingCats = []; }
+
+          if(!existingCats.includes(payload.id) && !existingCats.includes("*")) {
+            existingCats.push(payload.id);
+            accessSheet.getRange(r + 1, 2).setValue(JSON.stringify(existingCats));
+          }
+          matched = true; break;
+        }
+      }
+      if(!matched) {
+        accessSheet.appendRow([memberEmail.toLowerCase(), JSON.stringify([payload.id]), JSON.stringify(["*"])]);
+      }
+    });
+
+    return { success: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function deleteCategoryWorkspace(catId) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const catMaster = ss.getSheetByName("CATEGORY_MASTER");
+    const data = catMaster.getDataRange().getValues();
+
+    for(let i = 1; i < data.length; i++) {
+      if(data[i][0] === catId) {
+        catMaster.getRange(i + 1, 8).setValue("Deleted"); // Soft delete
+        return { success: true };
+      }
+    }
+    return { success: false };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function updateExpenseRow(payload) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const masterSheet = ss.getSheetByName("EXPENSES_MASTER");
+    const data = masterSheet.getDataRange().getValues();
+
+    let rowIdx = -1;
+    for(let i = 1; i < data.length; i++) {
+      if(data[i][0] === payload.id) {
+        rowIdx = i + 1; break;
+      }
+    }
+
+    if(rowIdx === -1) throw new Error("Expense not found");
+
+    masterSheet.getRange(rowIdx, 3).setValue(payload.title);
+    masterSheet.getRange(rowIdx, 4).setValue(payload.amount);
+    masterSheet.getRange(rowIdx, 5).setValue(payload.type);
+    masterSheet.getRange(rowIdx, 6).setValue(payload.date);
+    masterSheet.getRange(rowIdx, 7).setValue(payload.date.substring(0,7));
+    masterSheet.getRange(rowIdx, 8).setValue(payload.paidBy.toLowerCase());
+    masterSheet.getRange(rowIdx, 9).setValue(JSON.stringify(payload.breakdown));
+
+    // Sync with Category-specific sheet
+    const catMaster = ss.getSheetByName("CATEGORY_MASTER");
+    let catSheetName = "";
+    if (catMaster) {
+      const cmData = catMaster.getDataRange().getValues();
+      for(let c=1; c<cmData.length; c++) {
+        if(cmData[c][0] === payload.catId) { catSheetName = cmData[c][1]; break; }
+      }
+    }
+
+    if (catSheetName) {
+      const catSheet = ss.getSheetByName(catSheetName);
+      if (catSheet) {
+        const csData = catSheet.getDataRange().getValues();
+        for(let k=1; k<csData.length; k++) {
+          if(csData[k][0] === payload.id) {
+             catSheet.getRange(k+1, 3).setValue(payload.title);
+             catSheet.getRange(k+1, 4).setValue(payload.amount);
+             catSheet.getRange(k+1, 5).setValue(payload.type);
+             catSheet.getRange(k+1, 6).setValue(payload.date);
+             catSheet.getRange(k+1, 7).setValue(payload.date.substring(0,7));
+             catSheet.getRange(k+1, 8).setValue(payload.paidBy.toLowerCase());
+             catSheet.getRange(k+1, 9).setValue(JSON.stringify(payload.breakdown));
+             break;
+          }
+        }
+      }
+    }
+
+    return { success: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function deleteExpenseRow(expenseId) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const masterSheet = ss.getSheetByName("EXPENSES_MASTER");
+    const data = masterSheet.getDataRange().getValues();
+
+    let expenseData = null;
+    for(let i = 1; i < data.length; i++) {
+      if(data[i][0] === expenseId) {
+        expenseData = { row: i + 1, catId: data[i][1] };
+        break;
+      }
+    }
+
+    if (expenseData) {
+      masterSheet.deleteRow(expenseData.row);
+
+      const catMaster = ss.getSheetByName("CATEGORY_MASTER");
+      let catSheetName = "";
+      if (catMaster) {
+        const cmData = catMaster.getDataRange().getValues();
+        for(let c=1; c<cmData.length; c++) {
+          if(cmData[c][0] === expenseData.catId) { catSheetName = cmData[c][1]; break; }
+        }
+      }
+
+      if (catSheetName) {
+        const catSheet = ss.getSheetByName(catSheetName);
+        if (catSheet) {
+          const csData = catSheet.getDataRange().getValues();
+          for(let k=1; k<csData.length; k++) {
+            if(csData[k][0] === expenseId) {
+              catSheet.deleteRow(k+1); break;
+            }
+          }
+        }
+      }
+      return { success: true };
+    }
+    return { success: false };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function updateEstimatorLine(payload) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName("BUDGET_ESTIMATOR");
+    const data = sheet.getDataRange().getValues();
+
+    for(let i = 1; i < data.length; i++) {
+      if(data[i][0] === payload.id) {
+        sheet.getRange(i + 1, 3).setValue(payload.title);
+        sheet.getRange(i + 1, 4).setValue(payload.amount);
+        return { success: true };
+      }
+    }
+    throw new Error("Line not found");
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function deleteEstimatorLine(id) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName("BUDGET_ESTIMATOR");
+    const data = sheet.getDataRange().getValues();
+
+    for(let i = 1; i < data.length; i++) {
+      if(data[i][0] === id) {
+        sheet.deleteRow(i + 1);
+        return { success: true };
+      }
+    }
+    return { success: false };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function commitEstimatorProposedLine(payload) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -413,8 +661,9 @@ function commitEstimatorProposedLine(payload) {
     const sheet = ss.getSheetByName("BUDGET_ESTIMATOR");
     if(!sheet) throw new Error("Missing tab: BUDGET_ESTIMATOR");
     
+    const activeUser = Session.getActiveUser().getEmail().toLowerCase();
     const newId = "EST_" + Math.floor(10000 + Math.random() * 90000);
-    sheet.appendRow([newId, payload.catId, payload.title, payload.amount]);
+    sheet.appendRow([newId, payload.catId, payload.title, payload.amount, activeUser]);
     return { success: true };
   } finally {
     lock.releaseLock();
