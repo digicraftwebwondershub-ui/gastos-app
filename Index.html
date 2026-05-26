@@ -1,0 +1,435 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full transition-colors duration-300">
+<head>
+  <meta charset="UTF-8">
+  <title>FinTrack // Ambagan & Gastos Crew</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class'
+    }
+  </script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <?!= include('Styles'); ?>
+</head>
+<body id="app-body" class="h-full overflow-hidden font-sans bg-white text-slate-900 transition-colors duration-300">
+
+  <div id="app-loader" class="fixed inset-0 z-50 flex items-center justify-center bg-white/90 dark:bg-slate-950/90 backdrop-blur-md">
+    <div class="text-center space-y-4">
+      <div class="relative h-16 w-16 mx-auto flex items-center justify-center">
+        <div class="absolute inset-0 animate-spin rounded-full border-4 border-dashed border-pink-400"></div>
+        <i class="fas fa-wallet text-2xl text-teal-400 animate-bounce"></i>
+      </div>
+      <p class="text-sm font-bold tracking-wide text-pink-500 dark:text-pink-400 animate-pulse font-mono">Wait lang po... loading pa po... 💕</p>
+    </div>
+  </div>
+
+  <div id="unauthorized-gate" class="hidden flex h-screen flex-col items-center justify-center bg-slate-100 dark:bg-slate-900 p-6 text-center">
+    <div class="glass-panel max-w-md p-8 rounded-3xl border-2 border-red-300 bg-white/50 backdrop-blur-xl">
+      <i class="fas fa-hand-holding-hand text-5xl text-rose-400 mb-4 animate-shake"></i>
+      <h1 class="text-xl font-black mb-2">Hala, bawal dito! 🛑</h1>
+      <p id="denial-reason" class="text-slate-500 dark:text-slate-400 text-sm">Wala pang access ang email mo. Message your group admin to activate your profile code!</p>
+    </div>
+  </div>
+
+  <div id="app-container" class="hidden flex h-screen overflow-hidden">
+    
+    <aside id="app-sidebar" class="w-64 border-r border-slate-200 dark:border-slate-900 bg-slate-50 dark:bg-slate-900/40 flex flex-col justify-between p-4 z-10 transition-colors duration-300">
+      <div>
+        <div class="flex items-center justify-between px-2 py-4 border-b border-slate-200 dark:border-slate-800/60 mb-6">
+          <div class="flex items-center gap-3">
+            <div class="bg-gradient-to-tr from-pink-400 to-purple-400 p-2.5 rounded-2xl text-white font-black shadow-md shadow-pink-400/20"><i class="fas fa-sparkles"></i></div>
+            <span class="text-lg font-black tracking-wider text-slate-900 dark:text-white font-mono">FIN//TRACK</span>
+          </div>
+        </div>
+        
+        <nav class="space-y-1.5">
+          <button onclick="App.switchView('dashboard')" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-400 hover:text-pink-500 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-slate-800/40 transition duration-200 font-bold text-xs uppercase tracking-wider" data-view="dashboard">
+            <i class="fas fa-chart-pie w-5 text-center text-sm text-purple-400"></i> Dashboard
+          </button>
+          <button onclick="App.switchView('categories')" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-400 hover:text-pink-500 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-slate-800/40 transition duration-200 font-bold text-xs uppercase tracking-wider" data-view="categories">
+            <i class="fas fa-tags w-5 text-center text-sm text-blue-400"></i> Active Groups
+          </button>
+          <button onclick="App.switchView('expenses')" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-400 hover:text-pink-500 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-slate-800/40 transition duration-200 font-bold text-xs uppercase tracking-wider" data-view="expenses">
+            <i class="fas fa-receipt w-5 text-center text-sm text-teal-400"></i> Lahat ng Gastos
+          </button>
+          <button onclick="App.switchView('settlements')" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-400 hover:text-pink-500 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-slate-800/40 transition duration-200 font-bold text-xs uppercase tracking-wider" data-view="settlements">
+            <i class="fas fa-handshake w-5 text-center text-sm text-pink-400"></i> Bayaran ng Gastos
+          </button>
+          <button onclick="App.switchView('qrhub')" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-400 hover:text-pink-500 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-slate-800/40 transition duration-200 font-bold text-xs uppercase tracking-wider" data-view="qrhub">
+            <i class="fas fa-qrcode w-5 text-center text-sm text-indigo-400"></i> Scan-To-Pay Hub
+          </button>
+          <button onclick="App.switchView('estimator')" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-400 hover:text-pink-500 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-slate-800/40 transition duration-200 font-bold text-xs uppercase tracking-wider" data-view="estimator">
+            <i class="fas fa-compass-drafting w-5 text-center text-sm text-orange-400"></i> Ambagan Planner
+          </button>
+          <button onclick="App.switchView('leaderboard')" class="nav-btn w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-slate-600 dark:text-slate-400 hover:text-pink-500 dark:hover:text-pink-400 hover:bg-pink-50 dark:hover:bg-slate-800/40 transition duration-200 font-bold text-xs uppercase tracking-wider" data-view="leaderboard">
+            <i class="fas fa-crown w-5 text-center text-sm text-amber-400"></i> Leaderboard
+          </button>
+        </nav>
+      </div>
+      
+      <div class="space-y-3">
+        <button onclick="App.toggleThemeMode()" class="w-full flex items-center justify-between px-3 py-2.5 rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950/20 text-xs font-bold text-slate-600 dark:text-slate-400 hover:text-pink-500 dark:hover:text-pink-400 transition shadow-sm dark:shadow-none">
+          <span id="theme-toggle-text"><i class="fas fa-moon mr-2 text-indigo-500"></i>Dark Mode</span>
+          <i class="fas fa-toggle-off text-slate-400 dark:text-slate-500 text-lg" id="theme-toggle-icon"></i>
+        </button>
+
+        <div class="flex items-center gap-3 p-2.5 bg-white dark:bg-slate-950/60 border border-slate-200 dark:border-slate-900 rounded-xl shadow-sm dark:shadow-none">
+          <img id="user-avatar" src="" alt="Avatar" class="h-9 w-9 rounded-full border-2 border-pink-300">
+          <div class="overflow-hidden">
+            <p id="user-display-name" class="font-bold text-xs truncate text-slate-900 dark:text-white"></p>
+            <p id="user-display-role" class="text-[9px] text-pink-500 font-mono tracking-wider font-bold uppercase"></p>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <main class="flex-1 flex flex-col overflow-hidden bg-slate-100 dark:bg-slate-950 transition-colors duration-300">
+      
+      <header class="h-16 border-b border-slate-200 dark:border-slate-900 px-8 flex items-center justify-between bg-white/70 dark:bg-slate-900/10 backdrop-blur-md z-10">
+        <h2 id="view-title" class="text-sm font-black uppercase tracking-wider text-slate-800 dark:text-white">Dashboard</h2>
+        <div class="flex items-center gap-3">
+          <button onclick="App.openPayerGeneratorWheel()" class="bg-gradient-to-r from-pink-400 to-purple-500 text-white font-bold px-3 py-1.5 rounded-xl text-xs flex items-center gap-1.5 shadow-sm hover:scale-105 transition">
+            <i class="fas fa-dice animate-spin-slow"></i> Sino ang Taya?
+          </button>
+          <select id="filter-category" onchange="App.handleFiltersChange()" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:border-pink-400 shadow-sm dark:shadow-none dropdown-select"></select>
+          <select id="filter-date" onchange="App.handleFiltersChange()" class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-1.5 text-xs font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:border-pink-400 shadow-sm dark:shadow-none dropdown-select">
+            <option value="*">📆 All Time</option>
+            <option value="2026-05">📅 May 2026</option>
+          </select>
+        </div>
+      </header>
+
+      <section class="flex-1 overflow-y-auto p-8 relative space-y-6">
+        
+        <div id="view-dashboard" class="view-pane space-y-6">
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div class="pastel-card-purple p-5 rounded-2xl border border-purple-200 dark:border-purple-950 relative overflow-hidden shadow-sm hover:scale-[1.02] transition-transform duration-300">
+              <p class="text-[10px] font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400 flex items-center gap-1.5"><i class="fas fa-users-rectangle text-sm"></i> Total Group Expenses</p>
+              <h3 id="stat-total" class="text-2xl font-black mt-2 text-purple-950 dark:text-purple-100">₱0.00</h3>
+            </div>
+            <div class="pastel-card-emerald p-5 rounded-2xl border border-emerald-200 dark:border-emerald-950 relative overflow-hidden shadow-sm hover:scale-[1.02] transition-transform duration-300">
+              <p class="text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5"><i class="fas fa-face-grin-stars text-sm animate-pulse"></i> Inabono mo (wow yaman!)</p>
+              <h3 id="stat-my-abono" class="text-2xl font-black mt-2 text-emerald-950 dark:text-emerald-100">₱0.00</h3>
+            </div>
+            <div class="pastel-card-rose p-5 rounded-2xl border border-rose-200 dark:border-rose-950 relative overflow-hidden shadow-sm hover:scale-[1.02] transition-transform duration-300">
+              <p class="text-[10px] font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400 flex items-center gap-1.5"><i class="fas fa-hand-holding-dollar text-sm"></i> Utang Mo (To Pay)</p>
+              <h3 id="stat-my-debt" class="text-2xl font-black mt-2 text-rose-950 dark:text-rose-100">₱0.00</h3>
+            </div>
+            <div class="pastel-card-blue p-5 rounded-2xl border border-blue-200 dark:border-blue-950 relative overflow-hidden shadow-sm hover:scale-[1.02] transition-transform duration-300">
+              <p class="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 flex items-center gap-1.5"><i class="fas fa-piggy-bank text-sm"></i> Sisingilin Mo (Collectibles)</p>
+              <h3 id="stat-my-receivables" class="text-2xl font-black mt-2 text-blue-950 dark:text-blue-100">₱0.00</h3>
+            </div>
+          </div>
+          
+          <div class="bg-white dark:bg-slate-900/20 p-5 rounded-2xl border border-slate-200 dark:border-slate-900 shadow-sm dark:shadow-none space-y-4">
+            <div class="flex justify-between items-center border-b border-slate-100 dark:border-slate-900 pb-2">
+              <h4 class="text-xs font-mono tracking-widest uppercase text-slate-400 dark:text-slate-500 flex items-center gap-2"><i class="fas fa-scale-balanced text-pink-400"></i> Balance Status</h4>
+              <span class="text-[10px] font-bold bg-purple-500/10 text-purple-500 border border-purple-500/20 px-2 py-0.5 rounded-md"><i class="fas fa-wand-magic-sparkles mr-1"></i>Optimized Loop Matrix Active</span>
+            </div>
+            <div id="dashboard-net-breakdown" class="grid grid-cols-1 md:grid-cols-2 gap-6"></div>
+          </div>
+        </div>
+
+        <div id="view-categories" class="view-pane hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5"><i class="fas fa-layer-group text-blue-400"></i> Active Groups</h3>
+            <button onclick="App.openModal('category-modal')" class="bg-gradient-to-r from-pink-400 to-purple-500 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider shadow-md shadow-pink-400/10 hover:scale-[1.02] transition">
+              <i class="fas fa-folder-plus mr-1.5"></i> + Create New Group
+            </button>
+          </div>
+          <div id="categories-grid-target" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </div>
+
+        <div id="view-expenses" class="view-pane hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5"><i class="fas fa-list-check text-teal-400"></i> History ng Gastos</h3>
+            <button onclick="App.openModal('expense-modal')" class="bg-gradient-to-r from-emerald-400 to-teal-500 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider shadow-md shadow-emerald-400/10 hover:scale-[1.02] transition">
+              <i class="fas fa-plus mr-1.5"></i> + Add New Gastos
+            </button>
+          </div>
+          <div class="bg-white dark:bg-slate-900/30 rounded-2xl border border-slate-200 dark:border-slate-900 overflow-hidden shadow-sm dark:shadow-none">
+            <table class="w-full text-left border-collapse">
+              <thead>
+                <tr class="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 text-[10px] font-mono tracking-widest uppercase text-slate-500">
+                  <th class="p-4">Item Name / Title</th>
+                  <th class="p-4">Group Scope</th>
+                  <th class="p-4">Amount</th>
+                  <th class="p-4">Hatian Type</th>
+                  <th class="p-4">Nag-abono</th>
+                  <th class="p-4 text-right">Action Configuration Map</th>
+                </tr>
+              </thead>
+              <tbody id="expenses-table-body" class="text-xs divide-y divide-slate-100 dark:divide-slate-900/50"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div id="view-settlements" class="view-pane hidden space-y-4">
+          <div class="flex justify-between items-center">
+            <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5"><i class="fas fa-handshake text-pink-400"></i> Bayaran ng Gastos</h3>
+            <button onclick="App.openModal('settle-modal')" class="bg-gradient-to-r from-teal-400 to-indigo-500 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider shadow-md shadow-indigo-400/10 hover:scale-[1.02] transition">
+              <i class="fas fa-handshake-angle mr-1.5"></i> Record a Payment
+            </button>
+          </div>
+          <div id="settlement-simplification-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+        </div>
+
+        <div id="view-qrhub" class="view-pane hidden space-y-6">
+          <div class="flex justify-between items-center">
+            <div>
+              <h3 class="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2"><i class="fas fa-qrcode text-indigo-400"></i> Scan-To-Pay Hub</h3>
+              <p class="text-xs text-slate-400 mt-0.5">Diretsong scan ng QR codes ng tropa para iwas hassle sa pag-type ng numbers! 📱</p>
+            </div>
+            <button onclick="App.openModal('qr-upload-modal')" class="bg-gradient-to-r from-indigo-500 to-blue-600 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider shadow-md shadow-indigo-500/10 hover:scale-[1.01] transition">
+              <i class="fas fa-cloud-arrow-up mr-1"></i> Drop My QR Link
+            </button>
+          </div>
+          <div id="qr-directory-grid-target" class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6"></div>
+        </div>
+
+        <div id="view-estimator" class="view-pane hidden space-y-6">
+          <div class="flex justify-between items-center">
+            <div>
+              <h3 class="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2"><i class="fas fa-compass-drafting text-orange-400"></i> Ambagan Planner</h3>
+              <p class="text-xs text-slate-400 mt-0.5">I-compute at planuhin ang budget at tentative goals bago pa bumiyahe ang barkada! 🔮</p>
+            </div>
+            <button onclick="App.openModal('estimator-modal')" class="bg-gradient-to-r from-orange-400 to-amber-500 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider shadow-md shadow-orange-500/10 hover:scale-[1.01] transition">
+              <i class="fas fa-folder-plus mr-1"></i> + Add Proposed Trip Goal
+            </button>
+          </div>
+          <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <div class="lg:col-span-2 bg-white dark:bg-slate-900/30 border border-slate-200 dark:border-slate-900 rounded-2xl overflow-hidden shadow-sm">
+              <table class="w-full text-left border-collapse text-xs">
+                <thead>
+                  <tr class="bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800 font-mono text-[10px] uppercase text-slate-500">
+                    <th class="p-4">Proposed Target Item Description</th>
+                    <th class="p-4">Estimated Total Cost</th>
+                    <th class="p-4 text-right">Ambagan Per Head Estimate</th>
+                  </tr>
+                </thead>
+                <tbody id="estimator-table-body" class="divide-y divide-slate-100 dark:divide-slate-900/50"></tbody>
+              </table>
+            </div>
+            <div class="pastel-card-purple p-6 rounded-2xl border border-purple-200 dark:border-purple-950 flex flex-col justify-between shadow-sm">
+              <div>
+                <h4 class="text-xs font-black tracking-widest uppercase text-purple-900 dark:text-purple-300 border-b border-purple-300 dark:border-purple-900 pb-2 flex items-center gap-1.5"><i class="fas fa-calculator"></i> Projected Ambagan Summary</h4>
+                <div class="mt-4 space-y-3 font-mono">
+                  <div class="flex justify-between"><span>Sum of All Targets:</span><b id="est-total-cost">₱0.00</b></div>
+                  <div class="flex justify-between"><span>Group Size Count:</span><b id="est-member-count">0 pax</b></div>
+                </div>
+              </div>
+              <div class="border-t border-purple-300 dark:border-purple-900 pt-4 mt-6 flex justify-between items-center">
+                <span class="text-xs font-bold text-purple-900 dark:text-purple-400 uppercase font-sans">Estimated Total Per Head:</span>
+                <b id="est-final-per-head" class="text-xl font-black text-purple-950 dark:text-purple-100">₱0.00</b>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div id="view-leaderboard" class="view-pane hidden space-y-4">
+          <div class="bg-white dark:bg-slate-900/30 rounded-2xl border border-slate-200 dark:border-slate-900 p-6 space-y-8 shadow-sm dark:shadow-none" id="leaderboard-container"></div>
+        </div>
+
+      </section>
+    </main>
+  </div>
+
+  <div id="expense-modal" class="fixed inset-0 z-40 hidden flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md rounded-3xl p-6 shadow-2xl relative text-xs text-slate-800 dark:text-slate-200 scale-up-center">
+      <button onclick="App.closeModal('expense-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"><i class="fas fa-times"></i></button>
+      <h3 class="text-xs font-mono tracking-widest uppercase mb-4 border-b border-slate-200 dark:border-slate-800 pb-2 font-black text-pink-500 flex items-center gap-2"><i class="fas fa-file-invoice-dollar text-sm"></i> Add New Gastos Details</h3>
+      <form id="expense-form" onsubmit="App.handleExpenseSubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Anong binayaran? (Expense Title)</label>
+          <input type="text" id="form-title" placeholder="e.g., Airbnb booking, Gas, Food Share dinner" required class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-pink-400">
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Magkano lahat? (Total Amount)</label>
+            <input type="number" step="0.01" id="form-amount" oninput="App.syncSplittingForm()" required class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-pink-400">
+          </div>
+          <div>
+            <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Kailan binayaran? (Date)</label>
+            <input type="date" id="form-date" required class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-pink-400">
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Para saang Group / Trip?</label>
+            <select id="form-category" onchange="App.handleFormCategoryChange()" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-pink-400"></select>
+          </div>
+          <div>
+            <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Sino ang nag-abono?</label>
+            <select id="form-paidby" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-pink-400"></select>
+          </div>
+        </div>
+        <div>
+          <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Paano ang hatian?</label>
+          <div class="grid grid-cols-2 gap-4 mt-1">
+            <label class="flex items-center justify-center gap-2 p-3 bg-slate-5 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900 transition">
+              <input type="radio" name="expense_type" value="Shared" checked onchange="App.toggleSplitMode('Shared')" class="accent-pink-400">
+              <span class="font-bold text-slate-700 dark:text-slate-200 text-xs">Shared (Ambagan Crew) 👥</span>
+            </label>
+            <label class="flex items-center justify-center gap-2 p-3 bg-slate-5 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-2xl cursor-pointer hover:bg-slate-100 dark:hover:bg-slate-900 transition">
+              <input type="radio" name="expense_type" value="Individual" onchange="App.toggleSplitMode('Individual')" class="accent-pink-400">
+              <span class="font-bold text-slate-700 dark:text-slate-200 text-xs">Kanya-kanya 👤</span>
+            </label>
+          </div>
+        </div>
+        
+        <div id="splitting-breakdown-panel" class="border-t border-slate-200 dark:border-slate-800 pt-4 space-y-2 max-h-[150px] overflow-y-auto"></div>
+        <button type="submit" class="w-full bg-gradient-to-r from-pink-400 to-purple-500 text-white dark:text-slate-950 font-black py-3 rounded-2xl uppercase tracking-wider transition mt-2 shadow-md shadow-pink-400/20 hover:scale-[1.01]">Save Expense Entry</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="category-modal" class="fixed inset-0 z-40 hidden flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md rounded-3xl p-6 shadow-2xl relative text-xs text-slate-800 dark:text-slate-200 scale-up-center">
+      <button onclick="App.closeModal('category-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"><i class="fas fa-times"></i></button>
+      <h3 class="text-xs font-mono tracking-widest uppercase mb-4 border-b border-slate-200 dark:border-slate-800 pb-2 font-black text-pink-500 flex items-center gap-2"><i class="fas fa-folder-plus text-sm"></i> Create New Gasto Group</h3>
+      <form id="category-form" onsubmit="App.handleCategorySubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Pangalan ng Trip / Group Name</label>
+          <input type="text" id="cat-form-name" placeholder="e.g., Summer Outing 2026, Barkada Food Trip" required class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-pink-400">
+        </div>
+        <div>
+          <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Para saan ito? (Notes / Description)</label>
+          <textarea id="cat-form-desc" rows="2" placeholder="Write any extra details or info here..." class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-pink-400"></textarea>
+        </div>
+        <div>
+          <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Type of Group Workspace Classification</label>
+          <select id="cat-form-type" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-pink-400">
+            <option value="Travel">✈️ Gala / Travel Trip</option>
+            <option value="Food">🍔 Kainan / Food Trip</option>
+            <option value="Staycation">🏨 Staycation Outing</option>
+            <option value="Family">Family Tracker</option>
+          </select>
+        </div>
+        <div>
+          <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Sino ang kasama sa hatian? (Select Members)</label>
+          <div id="cat-form-members-checkboxes" class="grid grid-cols-2 gap-2 mt-2 bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 max-h-[130px] overflow-y-auto"></div>
+        </div>
+        <button type="submit" class="w-full bg-gradient-to-r from-pink-400 to-purple-500 text-white font-black py-3 rounded-2xl uppercase tracking-wider transition mt-2 shadow-md shadow-pink-400/20 hover:scale-[1.01]">Create New Group</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="settle-modal" class="fixed inset-0 z-40 hidden flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative text-xs text-slate-800 dark:text-slate-200 scale-up-center">
+      <button onclick="App.closeModal('settle-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"><i class="fas fa-times"></i></button>
+      <h3 class="text-xs font-mono tracking-widest uppercase mb-4 border-b border-slate-200 dark:border-slate-800 pb-2 font-black text-pink-500 flex items-center gap-2"><i class="fas fa-money-check-dollar text-sm"></i> Record a Payment Settlement</h3>
+      <form id="settle-form" onsubmit="App.handleSettlementSubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Aling Gasto Group isesettle?</label>
+          <select id="settle-form-cat" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-pink-400"></select>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Sino ang nagbayad?</label>
+            <select id="settle-form-from" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-pink-400"></select>
+          </div>
+          <div>
+            <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Sino ang binayaran?</label>
+            <select id="settle-form-to" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-pink-400"></select>
+          </div>
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <div>
+            <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Magkano binayad? (Amount)</label>
+            <input type="number" step="0.01" id="settle-form-amount" required class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-pink-400">
+          </div>
+          <div>
+            <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Kailan nagbayad? (Date)</label>
+            <input type="date" id="settle-form-date" required class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-pink-400">
+          </div>
+        </div>
+        <button type="submit" class="w-full bg-gradient-to-r from-teal-400 to-indigo-500 text-white dark:text-slate-950 font-black py-3 rounded-2xl uppercase tracking-wider transition mt-2 shadow-md shadow-teal-500/15">Save Settlement Record</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="wheel-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative text-center text-slate-800 dark:text-slate-200 scale-up-center">
+      <button onclick="App.closeModal('wheel-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"><i class="fas fa-times"></i></button>
+      <h3 class="text-xs font-mono tracking-widest uppercase mb-2 font-black text-purple-500"><i class="fas fa-dice-six mr-1"></i> Random Selector Panel</h3>
+      <h4 class="text-md font-extrabold text-slate-900 dark:text-white mb-4">Sino ang Taya Engine? 🎲</h4>
+      <div id="wheel-members-pool" class="grid grid-cols-2 gap-2 text-left bg-slate-50 dark:bg-slate-950 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 max-h-[120px] overflow-y-auto mb-4"></div>
+      <div class="h-28 flex items-center justify-center border-2 border-dashed border-pink-300 dark:border-pink-900/60 rounded-2xl bg-pink-500/5 mb-4 relative overflow-hidden">
+        <h2 id="wheel-spinner-result" class="text-xs font-bold text-slate-400 tracking-wide font-sans animate-pulse">Piliin ang kasama sa table tapos click Spin!</h2>
+      </div>
+      <button onclick="App.spinRandomPayerWheel()" class="w-full bg-gradient-to-r from-pink-400 to-purple-500 text-white font-black py-3 rounded-2xl uppercase tracking-wider shadow-md shadow-pink-400/20 active:scale-95 transition-all">Spin the Wheel! ⚡</button>
+    </div>
+  </div>
+
+  <div id="qr-upload-modal" class="fixed inset-0 z-40 hidden flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative text-xs text-slate-800 dark:text-slate-200 scale-up-center">
+      <button onclick="App.closeModal('qr-upload-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"><i class="fas fa-times"></i></button>
+      <h3 class="text-xs font-mono tracking-widest uppercase mb-4 border-b border-slate-200 dark:border-slate-800 pb-2 font-black text-indigo-500 flex items-center gap-1.5"><i class="fas fa-qrcode"></i> Register/Update Payment Details</h3>
+      <form id="qr-upload-form" onsubmit="App.handleQRDirectoryRegisterSubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">E-Wallet Link / Bank Identifier Name</label>
+          <input type="text" id="qr-form-bank" placeholder="e.g., GCash, Maya, BPI" required class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Mobile / Account Reference Number</label>
+          <input type="text" id="qr-form-number" placeholder="e.g., 0917 123 4567" required class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <div>
+          <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">QR Code Image Link (Google Drive Share Link)</label>
+          <input type="text" id="qr-form-url" placeholder="Paste your Google Drive link here po..." required class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-indigo-500">
+        </div>
+        <button type="submit" class="w-full bg-gradient-to-r from-indigo-500 to-blue-600 text-white font-black py-3 rounded-2xl uppercase tracking-wider transition mt-2 shadow-md">Compile Payment Hub Badge</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="estimator-modal" class="fixed inset-0 z-40 hidden flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative text-xs text-slate-800 dark:text-slate-200 scale-up-center">
+      <button onclick="App.closeModal('estimator-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"><i class="fas fa-times"></i></button>
+      <h3 class="text-xs font-mono tracking-widest uppercase mb-4 border-b border-slate-200 dark:border-slate-800 pb-2 font-black text-orange-500 flex items-center gap-1.5"><i class="fas fa-folder-plus"></i> Add Proposed Trip Goal</h3>
+      <form id="estimator-form" onsubmit="App.handleEstimatorLineSubmit(event)" class="space-y-4">
+        <div>
+          <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Trip Goal Item Name</label>
+          <input type="text" id="est-form-title" placeholder="e.g., Proposed Airbnb Villa Shinjuku, Food Budget target" required class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-orange-400">
+        </div>
+        <div>
+          <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Estimated Total Cost Projection (₱)</label>
+          <input type="number" step="0.01" id="est-form-amount" placeholder="0.00" required class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-orange-400">
+        </div>
+        <button type="submit" class="w-full bg-gradient-to-r from-orange-400 to-amber-500 text-white font-black py-3 rounded-2xl uppercase tracking-wider transition mt-2 shadow-md">Add Pipeline Line Item</button>
+      </form>
+    </div>
+  </div>
+
+  <div id="breakdown-modal" class="fixed inset-0 z-40 hidden flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative text-xs text-slate-800 dark:text-slate-200 scale-up-center">
+      <button onclick="App.closeModal('breakdown-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"><i class="fas fa-times"></i></button>
+      <h3 class="text-xs font-mono tracking-widest uppercase mb-4 border-b border-slate-200 dark:border-slate-800 pb-2 font-black text-pink-500 flex items-center gap-1.5">
+        <i class="fas fa-users-viewfinder text-sm"></i> Splitting Breakdown Details
+      </h3>
+      <div id="breakdown-modal-content" class="space-y-2.5"></div>
+    </div>
+  </div>
+
+  <div id="qr-viewer-modal" class="fixed inset-0 z-50 hidden flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+    <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md rounded-3xl p-6 shadow-2xl text-center relative scale-up-center transition-all">
+      <button onclick="App.closeModal('qr-viewer-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"><i class="fas fa-times"></i></button>
+      
+      <h4 id="qr-viewer-name" class="text-md font-black text-slate-900 dark:text-white tracking-wide">User Name</h4>
+      <span id="qr-viewer-bank" class="text-[10px] font-mono font-black uppercase text-indigo-500 dark:text-indigo-400 bg-indigo-500/10 inline-block px-3 py-1 rounded-md mt-2 border border-indigo-500/20">GCash</span>
+      
+      <div class="w-full aspect-square bg-slate-50 dark:bg-slate-950 rounded-2xl border border-slate-200 dark:border-slate-800 mt-5 overflow-hidden p-4 flex items-center justify-center group relative shadow-inner">
+        <img id="qr-viewer-img" src="" alt="Scan To Pay QR Code" class="max-w-full max-h-full rounded-xl object-contain transition-transform duration-300 group-hover:scale-105">
+      </div>
+      
+      <p id="qr-viewer-number" class="text-sm font-mono tracking-widest font-black mt-4 text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800/80">0917 123 4567</p>
+      <p class="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-2 flex items-center justify-center gap-1.5"><i class="fas fa-mobile-screen-button text-pink-400 animate-bounce"></i> Open your e-wallet & scan po to pay! ✨</p>
+    </div>
+  </div>
+
+  <? geometry_engine = true; ?>
+  <?!= include('JavaScript'); ?>
+</body>
+</html>
