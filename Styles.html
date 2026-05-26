@@ -1,0 +1,84 @@
+<style>
+  /* Custom Global Typography Injection Setting */
+  body {
+    font-family: 'Plus Jakarta Sans', sans-serif !important;
+  }
+
+  /* Pastel Soft Grid Design Core Systems Variables */
+  .pastel-card-purple { background-color: #f3e8ff; }
+  .pastel-card-emerald { background-color: #d1fae5; }
+  .pastel-card-rose { background-color: #ffe4e6; }
+  .pastel-card-blue { background-color: #e0f2fe; }
+
+  /* Dark theme structural overrides for pastel palettes to guarantee eye comfort */
+  .dark .pastel-card-purple { background-color: rgba(147, 51, 234, 0.15); }
+  .dark .pastel-card-emerald { background-color: rgba(16, 185, 129, 0.15); }
+  .dark .pastel-card-rose { background-color: rgba(244, 63, 94, 0.15); }
+  .dark .pastel-card-blue { background-color: rgba(14, 165, 233, 0.15); }
+
+  /* Glassmorphism Structural Definitions for dark mode */
+  .dark .glass-panel {
+    background: rgba(15, 23, 42, 0.55);
+    backdrop-filter: blur(24px) saturate(200%);
+  }
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.75);
+    backdrop-filter: blur(24px) saturate(200%);
+  }
+
+  /* Structural Functional Transitions and Animations Layouts */
+  .view-pane {
+    animation: slideUpFade 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
+  .scale-up-center {
+    animation: scaleUp 0.25s cubic-bezier(0.34, 1.56, 0.64, 1) forwards;
+  }
+
+  @keyframes slideUpFade {
+    from { opacity: 0; transform: translateY(12px); }
+    to { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes scaleUp {
+    from { transform: scale(0.95); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  .nav-btn-active {
+    color: #f43f5e !important;
+    background: rgba(244, 63, 94, 0.08) !important;
+    border-left: 4px solid #f43f5e;
+    border-radius: 0 16px 16px 0;
+    font-weight: 800;
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  .dark ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 99px; }
+  ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 99px; }
+
+  /* Subtle, Cute Hover Effects for Cards & Panels */
+  .stat-box, .glass-card, .table-panel, #profile-card {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+  }
+
+  .stat-box:hover, .glass-card:hover {
+    transform: translateY(-4px) !important; /* Gentle lift up */
+  }
+
+  /* Soft Pastel Glowing Effects on Light Theme hover */
+  .light-theme .stat-box:hover, .light-theme .glass-card:hover {
+    box-shadow: 0 12px 24px -4px rgba(244, 63, 94, 0.08), 
+                0 4px 12px -2px rgba(15, 23, 42, 0.04) !important;
+  }
+
+  /* Neon Ambient Glow Effects on Dark Theme hover */
+  .dark .stat-box:hover, .dark .glass-card:hover {
+    border-color: rgba(244, 63, 94, 0.3) !important; /* Subtle pink border highlight */
+    box-shadow: 0 10px 25px -5px rgba(244, 63, 94, 0.05) !important;
+  }
+
+  /* Interactive effect for list records on desktop view */
+  tbody tr {
+    transition: background-color 0.2s ease !important;
+  }
+</style>
