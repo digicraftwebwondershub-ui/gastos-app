@@ -50,11 +50,13 @@ const App = {
     
     if(App.state.themeMode === 'light') {
       htmlNode.classList.add('dark');
+      document.body.classList.add('dark');
       if(textLabel) textLabel.innerHTML = `<i class="fas fa-sun mr-2 text-amber-400 animate-pulse"></i>Light Mode`;
       if(iconLabel) { iconLabel.classList.remove('text-slate-400', 'fa-toggle-off'); iconLabel.classList.add('text-pink-400', 'fa-toggle-on'); }
       App.state.themeMode = 'dark';
     } else {
       htmlNode.classList.remove('dark');
+      document.body.classList.remove('dark');
       if(textLabel) textLabel.innerHTML = `<i class="fas fa-moon mr-2 text-indigo-500"></i>Dark Mode`;
       if(iconLabel) { iconLabel.classList.remove('text-pink-400', 'fa-toggle-on'); iconLabel.classList.add('text-slate-400', 'fa-toggle-off'); }
       App.state.themeMode = 'light';
