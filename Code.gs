@@ -85,8 +85,13 @@ const SecurityEngine = {
     
     for (let j = 1; j < accessData.length; j++) {
       if (accessData[j][0].toLowerCase() === email) {
-        rightsRecord.categories = JSON.parse(accessData[j][1]);
-        rightsRecord.months = JSON.parse(accessData[j][2]);
+        try {
+          rightsRecord.categories = accessData[j][1] ? JSON.parse(accessData[j][1]) : [];
+          rightsRecord.months = accessData[j][2] ? JSON.parse(accessData[j][2]) : [];
+        } catch(e) {
+          rightsRecord.categories = [];
+          rightsRecord.months = [];
+        }
         break;
       }
     }
@@ -122,7 +127,13 @@ const DatabaseController = {
       const catId = data[i][0];
       if (rights.categories.includes(catId) || rights.categories.includes("*")) {
         if(data[i][7] === "Active") {
-          output.push({ id: catId, name: data[i][1], description: data[i][2], members: JSON.parse(data[i][4]) });
+          let members = [];
+          try {
+            members = data[i][4] ? JSON.parse(data[i][4]) : [];
+          } catch(e) {
+            members = [];
+          }
+          output.push({ id: catId, name: data[i][1], description: data[i][2], members: members });
         }
       }
     }
@@ -204,7 +215,12 @@ const DatabaseController = {
         let matched = false;
         for(let r = 1; r < accessData.length; r++) {
           if(accessData[r][0].toLowerCase() === memberEmail.toLowerCase()) {
-            let existingCats = JSON.parse(accessData[r][1]);
+            let existingCats = [];
+            try {
+              existingCats = accessData[r][1] ? JSON.parse(accessData[r][1]) : [];
+            } catch(e) {
+              existingCats = [];
+            }
             if(!existingCats.includes(newCatId) && !existingCats.includes("*")) {
               existingCats.push(newCatId);
               accessSheet.getRange(r + 1, 2).setValue(JSON.stringify(existingCats));
