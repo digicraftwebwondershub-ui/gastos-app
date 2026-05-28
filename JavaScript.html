@@ -443,6 +443,7 @@ const App = {
     let html = '';
 
     exp.breakdown.forEach(item => {
+      if (item.share <= 0) return;
       const isPaid = item.status === 'Paid';
       html += `
         <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-slate-950/60 rounded-xl border border-slate-200 dark:border-slate-900">
