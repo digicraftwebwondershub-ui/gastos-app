@@ -135,7 +135,7 @@
         <div id="view-categories" class="view-pane hidden space-y-4">
           <div class="flex justify-between items-center">
             <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5"><i class="fas fa-layer-group text-blue-400"></i> Active Groups</h3>
-            <button onclick="App.openCreateModal('category-modal')" class="bg-gradient-to-r from-pink-400 to-purple-500 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider shadow-md shadow-pink-400/10 hover:scale-[1.02] transition">
+            <button onclick="App.openModal('category-modal')" class="bg-gradient-to-r from-pink-400 to-purple-500 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider shadow-md shadow-pink-400/10 hover:scale-[1.02] transition">
               <i class="fas fa-folder-plus mr-1.5"></i> + Create New Group
             </button>
           </div>
@@ -145,7 +145,7 @@
         <div id="view-expenses" class="view-pane hidden space-y-4">
           <div class="flex justify-between items-center">
             <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5"><i class="fas fa-list-check text-teal-400"></i> History ng Gastos</h3>
-            <button onclick="App.openCreateModal('expense-modal')" class="bg-gradient-to-r from-emerald-400 to-teal-500 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider shadow-md shadow-emerald-400/10 hover:scale-[1.02] transition">
+            <button onclick="App.openModal('expense-modal')" class="bg-gradient-to-r from-emerald-400 to-teal-500 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider shadow-md shadow-emerald-400/10 hover:scale-[1.02] transition">
               <i class="fas fa-plus mr-1.5"></i> + Add New Gastos
             </button>
           </div>
@@ -195,7 +195,7 @@
               <h3 class="text-sm font-black text-slate-900 dark:text-white flex items-center gap-2"><i class="fas fa-compass-drafting text-orange-400"></i> Ambagan Planner</h3>
               <p class="text-xs text-slate-400 mt-0.5">I-compute at planuhin ang budget at tentative goals bago pa bumiyahe ang barkada! 🔮</p>
             </div>
-            <button onclick="App.openCreateModal('estimator-modal')" class="bg-gradient-to-r from-orange-400 to-amber-500 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider shadow-md shadow-orange-500/10 hover:scale-[1.01] transition">
+            <button onclick="App.openModal('estimator-modal')" class="bg-gradient-to-r from-orange-400 to-amber-500 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider shadow-md shadow-orange-500/10 hover:scale-[1.01] transition">
               <i class="fas fa-folder-plus mr-1"></i> + Add Proposed Trip Goal
             </button>
           </div>
@@ -207,7 +207,7 @@
                     <th class="p-4">Proposed Target Item Description</th>
                     <th class="p-4">Estimated Total Cost</th>
                     <th class="p-4">Ambagan Per Head Estimate</th>
-                    <th class="p-4 text-right">Actions</th>
+                    <th class="p-4 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody id="estimator-table-body" class="divide-y divide-slate-100 dark:divide-slate-900/50"></tbody>
@@ -240,7 +240,7 @@
   <div id="expense-modal" class="fixed inset-0 z-40 hidden flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md rounded-3xl p-6 shadow-2xl relative text-xs text-slate-800 dark:text-slate-200 scale-up-center">
       <button onclick="App.closeModal('expense-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"><i class="fas fa-times"></i></button>
-      <h3 id="expense-modal-title" class="text-xs font-mono tracking-widest uppercase mb-4 border-b border-slate-200 dark:border-slate-800 pb-2 font-black text-pink-500 flex items-center gap-2"><i class="fas fa-file-invoice-dollar text-sm"></i> Add New Gastos Details</h3>
+      <h3 class="text-xs font-mono tracking-widest uppercase mb-4 border-b border-slate-200 dark:border-slate-800 pb-2 font-black text-pink-500 flex items-center gap-2"><i class="fas fa-file-invoice-dollar text-sm"></i> Add New Gastos Details</h3>
       <form id="expense-form" onsubmit="App.handleExpenseSubmit(event)" class="space-y-4">
         <input type="hidden" id="form-expense-id">
         <div>
@@ -290,7 +290,7 @@
   <div id="category-modal" class="fixed inset-0 z-40 hidden flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-md rounded-3xl p-6 shadow-2xl relative text-xs text-slate-800 dark:text-slate-200 scale-up-center">
       <button onclick="App.closeModal('category-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"><i class="fas fa-times"></i></button>
-      <h3 id="category-modal-title" class="text-xs font-mono tracking-widest uppercase mb-4 border-b border-slate-200 dark:border-slate-800 pb-2 font-black text-pink-500 flex items-center gap-2"><i class="fas fa-folder-plus text-sm"></i> Create New Gasto Group</h3>
+      <h3 class="text-xs font-mono tracking-widest uppercase mb-4 border-b border-slate-200 dark:border-slate-800 pb-2 font-black text-pink-500 flex items-center gap-2"><i class="fas fa-folder-plus text-sm"></i> Create New Gasto Group</h3>
       <form id="category-form" onsubmit="App.handleCategorySubmit(event)" class="space-y-4">
         <input type="hidden" id="form-category-id">
         <div>
@@ -391,7 +391,7 @@
   <div id="estimator-modal" class="fixed inset-0 z-40 hidden flex items-center justify-center bg-slate-950/70 backdrop-blur-sm p-4">
     <div class="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 w-full max-w-sm rounded-3xl p-6 shadow-2xl relative text-xs text-slate-800 dark:text-slate-200 scale-up-center">
       <button onclick="App.closeModal('estimator-modal')" class="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-white"><i class="fas fa-times"></i></button>
-      <h3 id="estimator-modal-title" class="text-xs font-mono tracking-widest uppercase mb-4 border-b border-slate-200 dark:border-slate-800 pb-2 font-black text-orange-500 flex items-center gap-1.5"><i class="fas fa-folder-plus"></i> Add Proposed Trip Goal</h3>
+      <h3 class="text-xs font-mono tracking-widest uppercase mb-4 border-b border-slate-200 dark:border-slate-800 pb-2 font-black text-orange-500 flex items-center gap-1.5"><i class="fas fa-folder-plus"></i> Add Proposed Trip Goal</h3>
       <form id="estimator-form" onsubmit="App.handleEstimatorLineSubmit(event)" class="space-y-4">
         <input type="hidden" id="form-estimator-id">
         <div>
