@@ -329,7 +329,7 @@ const DatabaseController = {
       
       for (let i = 1; i < data.length; i++) {
         if (data[i][0] === catId) {
-          sheet.getRange(i + 1, 8).setValue("Inactive");
+          sheet.getRange(i + 1, 8).setValue("Archived");
           return { success: true };
         }
       }
