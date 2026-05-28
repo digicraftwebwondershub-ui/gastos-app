@@ -246,7 +246,7 @@ const DatabaseController = {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
       const catMaster = ss.getSheetByName("CATEGORY_MASTER");
       const data = catMaster.getDataRange().getValues();
-
+      
       let rowIdx = -1;
       let oldName = "";
       for(let i = 1; i < data.length; i++) {
@@ -256,17 +256,17 @@ const DatabaseController = {
           break;
         }
       }
-
+      
       if(rowIdx === -1) throw new Error("Category not found");
-
+      
       catMaster.getRange(rowIdx, 2, 1, 2).setValues([[payload.name, payload.description]]);
       catMaster.getRange(rowIdx, 5, 1, 2).setValues([[JSON.stringify(payload.members), payload.type]]);
-
+      
       if(oldName !== payload.name) {
         const sheet = ss.getSheetByName(oldName);
         if(sheet) sheet.setName(payload.name);
       }
-
+      
       // Update access rights for members
       const accessSheet = ss.getSheetByName("ACCESS_RIGHTS");
       const accessData = accessSheet.getDataRange().getValues();
@@ -289,7 +289,7 @@ const DatabaseController = {
           accessSheet.appendRow([memberEmail.toLowerCase(), JSON.stringify([payload.id]), JSON.stringify(["*"])]);
         }
       });
-
+      
       return { success: true };
     } finally {
       lock.releaseLock();
@@ -303,7 +303,7 @@ const DatabaseController = {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
       const catMaster = ss.getSheetByName("CATEGORY_MASTER");
       const data = catMaster.getDataRange().getValues();
-
+      
       for(let i = 1; i < data.length; i++) {
         if(data[i][0] === catId) {
           catMaster.getRange(i + 1, 8).setValue("Deleted");
@@ -348,24 +348,24 @@ const DatabaseController = {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
       const masterSheet = ss.getSheetByName("EXPENSES_MASTER");
       const masterData = masterSheet.getDataRange().getValues();
-
+      
       let rowIdx = -1;
       for(let i = 1; i < masterData.length; i++) {
         if(masterData[i][0] === expenseObj.id) {
           rowIdx = i + 1; break;
         }
       }
-
+      
       if(rowIdx === -1) throw new Error("Expense record not found");
-
+      
       const rowData = [
         expenseObj.id, expenseObj.catId, expenseObj.title, expenseObj.amount, expenseObj.type,
         expenseObj.date, expenseObj.date.substring(0,7), expenseObj.paidBy.toLowerCase(),
         JSON.stringify(expenseObj.breakdown), expenseObj.receipt || "", masterData[rowIdx-1][10]
       ];
-
+      
       masterSheet.getRange(rowIdx, 1, 1, 11).setValues([rowData]);
-
+      
       const categorySheet = ss.getSheetByName(expenseObj.categoryName);
       if(categorySheet) {
         const catData = categorySheet.getDataRange().getValues();
@@ -376,7 +376,7 @@ const DatabaseController = {
           }
         }
       }
-
+      
       return { success: true };
     } finally {
       lock.releaseLock();
@@ -390,14 +390,14 @@ const DatabaseController = {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
       const masterSheet = ss.getSheetByName("EXPENSES_MASTER");
       const masterData = masterSheet.getDataRange().getValues();
-
+      
       for(let i = 1; i < masterData.length; i++) {
         if(masterData[i][0] === expenseId) {
           masterSheet.deleteRow(i + 1);
           break;
         }
       }
-
+      
       const categorySheet = ss.getSheetByName(categoryName);
       if(categorySheet) {
         const catData = categorySheet.getDataRange().getValues();
@@ -408,7 +408,7 @@ const DatabaseController = {
           }
         }
       }
-
+      
       return { success: true };
     } finally {
       lock.releaseLock();
@@ -514,10 +514,10 @@ function getBudgetEstimatesData() {
   const data = sheet.getDataRange().getValues();
   const list = [];
   for(let i = 1; i < data.length; i++) {
-    list.push({
-      id: data[i][0],
-      catId: data[i][1],
-      title: data[i][2],
+    list.push({ 
+      id: data[i][0], 
+      catId: data[i][1], 
+      title: data[i][2], 
       amount: parseFloat(data[i][3]) || 0,
       createdBy: data[i][4] ? data[i][4].toLowerCase() : ""
     });
@@ -587,7 +587,7 @@ function updateEstimatorLine(payload) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName("BUDGET_ESTIMATOR");
     const data = sheet.getDataRange().getValues();
-
+    
     for(let i = 1; i < data.length; i++) {
       if(data[i][0] === payload.id) {
         sheet.getRange(i + 1, 3, 1, 2).setValues([[payload.title, payload.amount]]);
@@ -607,7 +607,7 @@ function deleteEstimatorLine(estId) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName("BUDGET_ESTIMATOR");
     const data = sheet.getDataRange().getValues();
-
+    
     for(let i = 1; i < data.length; i++) {
       if(data[i][0] === estId) {
         sheet.deleteRow(i + 1);
