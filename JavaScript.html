@@ -327,14 +327,22 @@ const App = {
     const grid = document.getElementById('categories-grid-target');
     if(!grid) return;
     let html = '';
+    const isAdmin = App.state.user && App.state.user.role === 'Admin';
     
     App.state.categories.forEach(cat => {
+      const canEdit = isAdmin;
       html += `
         <div class="bg-white dark:bg-slate-900/30 p-5 rounded-3xl border border-slate-200 dark:border-slate-900 flex flex-col justify-between space-y-4 shadow-sm dark:shadow-none hover:shadow-md transition duration-200">
           <div>
             <div class="flex items-center justify-between">
               <span class="px-2 py-0.5 font-mono text-[9px] bg-pink-500/10 text-pink-600 dark:text-pink-400 rounded-md uppercase border border-pink-500/20 font-bold">${cat.type}</span>
-              <span class="text-[10px] text-slate-400 font-mono">${cat.id}</span>
+              <div class="flex gap-1">
+                ${canEdit ? `
+                  <button onclick="App.openEditCategory('${cat.id}')" class="text-[10px] text-blue-500 hover:text-blue-700 transition"><i class="fas fa-edit"></i></button>
+                  <button onclick="App.confirmDeleteCategory('${cat.id}')" class="text-[10px] text-rose-500 hover:text-rose-700 transition"><i class="fas fa-trash"></i></button>
+                ` : ''}
+                <span class="text-[10px] text-slate-400 font-mono">${cat.id}</span>
+              </div>
             </div>
             <h4 class="text-sm font-black text-slate-900 dark:text-white mt-2 flex items-center gap-1.5"><i class="fas fa-umbrella-beach text-amber-400"></i> ${cat.name}</h4>
             <p class="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">${cat.description || 'No summary notes written.'}</p>
@@ -366,10 +374,14 @@ const App = {
       return;
     }
 
+    const myEmail = App.state.user ? App.state.user.email.toLowerCase() : "";
+    const isAdmin = App.state.user && App.state.user.role === 'Admin';
+
     data.forEach(exp => {
       const cat = App.state.categories.find(c => c.id === exp.catId) || { name: "Global Master" };
       const casualTypeLabel = exp.type === 'Shared' ? 'Shared 👥' : 'Kanya-kanya 👤';
       const casualClassTag = exp.type === 'Shared' ? 'text-teal-600 dark:text-teal-400 bg-teal-50 dark:bg-teal-950/30' : 'text-amber-600 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/30';
+      const canEdit = isAdmin || exp.recordedBy === myEmail;
 
       html += `
         <tr class="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition text-slate-700 dark:text-slate-300">
@@ -381,10 +393,18 @@ const App = {
           <td class="p-4 font-mono font-bold text-slate-900 dark:text-emerald-400">₱${exp.amount.toFixed(2)}</td>
           <td class="p-4 text-[11px]"><span class="px-2 py-0.5 rounded-full font-bold text-[10px] ${casualClassTag}">${casualTypeLabel}</span></td>
           <td class="p-4 text-[11px] font-sans font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5"><i class="fas fa-user-astronaut text-[10px] text-purple-400"></i> ${App.resolveUserDisplayName(exp.paidBy)}</td>
-          <td class="p-4 text-right">
+          <td class="p-4 text-right space-x-1">
              <button onclick="App.inspectMatrixBreakdown('${exp.id}')" class="text-[10px] font-bold text-slate-600 dark:text-slate-400 hover:text-pink-500 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm dark:shadow-none transition hover:border-pink-400">
                <i class="fas fa-eye mr-1"></i> View Splitting
              </button>
+             ${canEdit ? `
+               <button onclick="App.openEditExpense('${exp.id}')" class="text-[10px] font-bold text-blue-600 dark:text-blue-400 hover:text-blue-500 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm dark:shadow-none transition hover:border-blue-400">
+                 <i class="fas fa-edit"></i>
+               </button>
+               <button onclick="App.confirmDeleteExpense('${exp.id}', '${cat.name}')" class="text-[10px] font-bold text-rose-600 dark:text-rose-400 hover:text-rose-500 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-950/50 border border-slate-200 dark:border-slate-800 rounded-xl shadow-sm dark:shadow-none transition hover:border-rose-400">
+                 <i class="fas fa-trash"></i>
+               </button>
+             ` : ''}
           </td>
         </tr>`;
     });
@@ -537,19 +557,29 @@ const App = {
     const filteredLines = App.state.estimatorLogs.filter(e => e.catId === currentCatObj.id);
     let html = '';
     let sumTotalEstimates = 0;
+    const myEmail = App.state.user ? App.state.user.email.toLowerCase() : "";
+    const isAdmin = App.state.user && App.state.user.role === 'Admin';
     
     filteredLines.forEach(line => {
       sumTotalEstimates += line.amount;
       const shareCheck = line.amount / currentCatObj.members.length;
+      const canEdit = isAdmin || line.createdBy === myEmail;
+
       html += `
         <tr class="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition text-slate-700 dark:text-slate-300">
           <td class="p-4 font-bold text-slate-900 dark:text-white"><i class="fas fa-signs-post text-orange-400 mr-2"></i>${line.title}</td>
           <td class="p-4 font-mono font-semibold">₱${line.amount.toFixed(2)}</td>
-          <td class="p-4 text-right font-mono font-bold text-purple-500">₱${shareCheck.toFixed(2)} / head</td>
+          <td class="p-4 font-mono font-bold text-purple-500">₱${shareCheck.toFixed(2)} / head</td>
+          <td class="p-4 text-right space-x-1">
+            ${canEdit ? `
+              <button onclick="App.openEditEstimator('${line.id}')" class="text-[10px] text-blue-500 hover:text-blue-700 transition"><i class="fas fa-edit"></i></button>
+              <button onclick="App.confirmDeleteEstimator('${line.id}')" class="text-[10px] text-rose-500 hover:text-rose-700 transition"><i class="fas fa-trash"></i></button>
+            ` : ''}
+          </td>
         </tr>`;
     });
     
-    body.innerHTML = html || `<tr><td colspan="3" class="p-8 text-center text-slate-400 italic">No targets proposed yet for ${currentCatObj.name}. Add one po!</td></tr>`;
+    body.innerHTML = html || `<tr><td colspan="4" class="p-8 text-center text-slate-400 italic">No targets proposed yet for ${currentCatObj.name}. Add one po!</td></tr>`;
     
     document.getElementById('est-total-cost').innerText = '₱' + sumTotalEstimates.toLocaleString('en-US', {minimumFractionDigits:2});
     document.getElementById('est-member-count').innerText = currentCatObj.members.length + " pax";
@@ -696,10 +726,144 @@ const App = {
     const el = document.getElementById(id);
     if(el) el.classList.remove('hidden'); 
   },
+
+  openCreateModal: function(id) {
+    if(id === 'expense-modal') {
+      const form = document.getElementById('expense-form');
+      if(form) form.reset();
+      document.getElementById('form-expense-id').value = "";
+      document.getElementById('form-category').disabled = false;
+      document.getElementById('expense-modal-title').innerHTML = '<i class="fas fa-file-invoice-dollar text-sm"></i> Add New Gastos Details';
+      const submitBtn = document.querySelector('#expense-form button[type="submit"]');
+      if(submitBtn) submitBtn.innerText = "Save Expense Entry";
+      App.handleFormCategoryChange();
+    } else if(id === 'category-modal') {
+      const form = document.getElementById('category-form');
+      if(form) form.reset();
+      document.getElementById('form-category-id').value = "";
+      document.getElementById('category-modal-title').innerHTML = '<i class="fas fa-folder-plus text-sm"></i> Create New Gasto Group';
+      const submitBtn = document.querySelector('#category-form button[type="submit"]');
+      if(submitBtn) submitBtn.innerText = "Create New Group";
+    } else if(id === 'estimator-modal') {
+      const form = document.getElementById('estimator-form');
+      if(form) form.reset();
+      document.getElementById('form-estimator-id').value = "";
+      document.getElementById('estimator-modal-title').innerHTML = '<i class="fas fa-folder-plus"></i> Add Proposed Trip Goal';
+      const submitBtn = document.querySelector('#estimator-form button[type="submit"]');
+      if(submitBtn) submitBtn.innerText = "Add Pipeline Line Item";
+    }
+    App.openModal(id);
+  },
   
   closeModal: function(id) { 
     const el = document.getElementById(id);
     if(el) el.classList.add('hidden'); 
+  },
+
+  openEditCategory: function(catId) {
+    const cat = App.state.categories.find(c => c.id === catId);
+    if(!cat) return;
+
+    document.getElementById('form-category-id').value = cat.id;
+    document.getElementById('cat-form-name').value = cat.name;
+    document.getElementById('cat-form-desc').value = cat.description;
+    document.getElementById('cat-form-type').value = cat.type;
+
+    const checkboxes = document.querySelectorAll('input[name="cat_members"]');
+    checkboxes.forEach(cb => {
+      cb.checked = cat.members.includes(cb.value.toLowerCase());
+    });
+
+    document.getElementById('category-modal-title').innerHTML = '<i class="fas fa-edit text-sm"></i> Edit Gasto Group';
+    const submitBtn = document.querySelector('#category-form button[type="submit"]');
+    if(submitBtn) submitBtn.innerText = "Update Group Details";
+    App.openModal('category-modal');
+  },
+
+  confirmDeleteCategory: function(catId) {
+    if(confirm("Are you sure you want to delete this group? This will hide it from the active list.")) {
+      App.showGlobalLoader();
+      google.script.run
+        .withSuccessHandler(function() {
+          App.hydrateMasterSystemDatasets();
+        })
+        .withFailureHandler(App.handleGlobalExceptionRecovery)
+        .deleteCategoryWorkspace(catId);
+    }
+  },
+
+  openEditExpense: function(expId) {
+    const exp = App.state.expenses.find(e => e.id === expId);
+    if(!exp) return;
+
+    document.getElementById('form-expense-id').value = exp.id;
+    document.getElementById('form-title').value = exp.title;
+    document.getElementById('form-amount').value = exp.amount;
+    document.getElementById('form-date').value = exp.date;
+    document.getElementById('form-category').value = exp.catId;
+    document.getElementById('form-category').disabled = true;
+
+    App.handleFormCategoryChange();
+    document.getElementById('form-paidby').value = exp.paidBy;
+
+    const typeRadios = document.querySelectorAll('input[name="expense_type"]');
+    typeRadios.forEach(r => {
+      if(r.value === exp.type) r.checked = true;
+    });
+
+    App.toggleSplitMode(exp.type);
+
+    if(exp.type === 'Individual') {
+      const inputs = document.querySelectorAll('.split-input');
+      inputs.forEach(inp => {
+        const email = inp.getAttribute('data-email').toLowerCase();
+        const breakdownItem = exp.breakdown.find(b => b.email === email);
+        if(breakdownItem) inp.value = breakdownItem.share;
+      });
+    }
+
+    document.getElementById('expense-modal-title').innerHTML = '<i class="fas fa-edit text-sm"></i> Edit Gastos Details';
+    const submitBtn = document.querySelector('#expense-form button[type="submit"]');
+    if(submitBtn) submitBtn.innerText = "Update Expense Entry";
+    App.openModal('expense-modal');
+  },
+
+  confirmDeleteExpense: function(expId, catName) {
+    if(confirm("Are you sure you want to delete this expense record?")) {
+      App.showGlobalLoader();
+      google.script.run
+        .withSuccessHandler(function() {
+          App.hydrateMasterSystemDatasets();
+        })
+        .withFailureHandler(App.handleGlobalExceptionRecovery)
+        .deleteExpenseRow(expId, catName);
+    }
+  },
+
+  openEditEstimator: function(estId) {
+    const est = App.state.estimatorLogs.find(e => e.id === estId);
+    if(!est) return;
+
+    document.getElementById('form-estimator-id').value = est.id;
+    document.getElementById('est-form-title').value = est.title;
+    document.getElementById('est-form-amount').value = est.amount;
+
+    document.getElementById('estimator-modal-title').innerHTML = '<i class="fas fa-edit"></i> Edit Proposed Trip Goal';
+    const submitBtn = document.querySelector('#estimator-form button[type="submit"]');
+    if(submitBtn) submitBtn.innerText = "Update Pipeline Item";
+    App.openModal('estimator-modal');
+  },
+
+  confirmDeleteEstimator: function(estId) {
+    if(confirm("Are you sure you want to delete this proposed line?")) {
+      App.showGlobalLoader();
+      google.script.run
+        .withSuccessHandler(function() {
+          App.hydrateMasterSystemDatasets();
+        })
+        .withFailureHandler(App.handleGlobalExceptionRecovery)
+        .deleteEstimatorLine(estId);
+    }
   },
 
   syncSplittingForm: function() {
@@ -759,10 +923,13 @@ const App = {
       }
     }
 
+    const expId = document.getElementById('form-expense-id').value;
     const payload = {
-      catId: catId, categoryName: selectedOpt.getAttribute('data-name'), title: titleEl.value,
+      id: expId, catId: catId, categoryName: selectedOpt.getAttribute('data-name'), title: titleEl.value,
       amount: grossAmt, date: dateEl.value, type: expType, paidBy: payerEmail, breakdown: computedBreakdown
     };
+
+    const action = expId ? 'updateExpenseRow' : 'commitExpenseRow';
 
     google.script.run
       .withSuccessHandler(function() {
@@ -772,7 +939,7 @@ const App = {
         App.hydrateMasterSystemDatasets();
       })
       .withFailureHandler(App.handleGlobalExceptionRecovery)
-      .commitExpenseRow(payload);
+      [action](payload);
   },
 
   handleCategorySubmit: function(e) {
@@ -791,13 +958,16 @@ const App = {
     const nameEl = document.getElementById('cat-form-name');
     const descEl = document.getElementById('cat-form-desc');
     const typeEl = document.getElementById('cat-form-type');
+    const catId = document.getElementById('form-category-id').value;
     
     if(!nameEl || !descEl || !typeEl) return;
 
     const payload = {
-      name: nameEl.value, description: descEl.value, type: typeEl.value,
+      id: catId, name: nameEl.value, description: descEl.value, type: typeEl.value,
       createdBy: myEmail, members: assignedMembers
     };
+
+    const action = catId ? 'updateCategoryWorkspace' : 'createNewCategoryWorkspace';
 
     google.script.run
       .withSuccessHandler(function() {
@@ -811,7 +981,7 @@ const App = {
           .getApplicationInitialState();
       })
       .withFailureHandler(App.handleGlobalExceptionRecovery)
-      .createNewCategoryWorkspace(payload);
+      [action](payload);
   },
 
   handleSettlementSubmit: function(e) {
@@ -867,12 +1037,16 @@ const App = {
     e.preventDefault();
     App.showGlobalLoader();
     
+    const estId = document.getElementById('form-estimator-id').value;
     const activeCatId = document.getElementById('filter-category').value;
     const payload = {
+      id: estId,
       catId: activeCatId === '*' ? App.state.categories[0].id : activeCatId,
       title: document.getElementById('est-form-title').value,
       amount: parseFloat(document.getElementById('est-form-amount').value)
     };
+
+    const action = estId ? 'updateEstimatorLine' : 'commitEstimatorProposedLine';
 
     google.script.run
       .withSuccessHandler(function() {
@@ -881,7 +1055,7 @@ const App = {
         App.hydrateMasterSystemDatasets();
       })
       .withFailureHandler(App.handleGlobalExceptionRecovery)
-      .commitEstimatorProposedLine(payload);
+      [action](payload);
   },
 
   showGlobalLoader: function() {
