@@ -142,7 +142,13 @@ const App = {
     if(mode === 'Shared') {
       html = `
         <div class="p-2 space-y-1 bg-slate-50 dark:bg-slate-950/40 rounded-xl border border-slate-200 dark:border-slate-900">
-          <p class="text-[10px] font-bold text-slate-400 uppercase px-1 mb-1">Select members to include in split:</p>
+          <div class="flex items-center justify-between px-1 mb-1">
+            <p class="text-[10px] font-bold text-slate-400 uppercase">Select members to include in split:</p>
+            <label class="flex items-center gap-1.5 cursor-pointer group">
+              <input type="checkbox" id="share-select-all" checked onchange="App.toggleAllShareMembers(this.checked)" class="accent-pink-500 w-3 h-3">
+              <span class="text-[10px] font-black text-pink-500 group-hover:text-pink-400 transition uppercase">Select All</span>
+            </label>
+          </div>
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-2">`;
       cat.members.forEach(m => {
         html += `
@@ -755,6 +761,11 @@ const App = {
     if(el) el.classList.remove('hidden'); 
   },
   
+  toggleAllShareMembers: function(checked) {
+    const checkboxes = document.querySelectorAll('input[name="share_member"]');
+    checkboxes.forEach(cb => cb.checked = checked);
+  },
+
   closeModal: function(id) { 
     const el = document.getElementById(id);
     if(el) {
