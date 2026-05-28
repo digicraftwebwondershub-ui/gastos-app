@@ -33,6 +33,7 @@ const App = {
 
     App.populateDynamicDropdownFilters();
     App.hydrateMasterSystemDatasets();
+    App.populateEstimatorMembers();
     document.getElementById('app-container').classList.remove('hidden');
   },
 
@@ -587,12 +588,18 @@ const App = {
     const filteredLines = App.state.estimatorLogs.filter(e => e.catId === currentCatObj.id);
     let html = '';
     let sumTotalEstimates = 0;
+    let sumMyProjectedAmbagan = 0;
     const isAdmin = App.state.user && App.state.user.role === 'Admin';
     const myEmail = App.state.user ? App.state.user.email.toLowerCase() : "";
     
     filteredLines.forEach(line => {
       sumTotalEstimates += line.amount;
-      const shareCheck = line.amount / currentCatObj.members.length;
+      const participants = line.participants && line.participants.length > 0 ? line.participants : currentCatObj.members;
+      const shareCheck = line.amount / participants.length;
+      
+      if (participants.includes(myEmail)) {
+        sumMyProjectedAmbagan += shareCheck;
+      }
 
       let actionsHtml = '';
       if (isAdmin || (line.createdBy && line.createdBy === myEmail)) {
@@ -608,18 +615,18 @@ const App = {
         <tr class="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition text-slate-700 dark:text-slate-300">
           <td class="p-4 font-bold text-slate-900 dark:text-white"><i class="fas fa-signs-post text-orange-400 mr-2"></i>${line.title}</td>
           <td class="p-4 font-mono font-semibold">₱${line.amount.toFixed(2)}</td>
+          <td class="p-4"><span class="px-2 py-0.5 bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20 rounded-md font-bold text-[10px]"><i class="fas fa-user-group mr-1"></i>${participants.length} pax</span></td>
           <td class="p-4 font-mono font-bold text-purple-500">₱${shareCheck.toFixed(2)} / head</td>
           <td class="p-4 text-right">${actionsHtml}</td>
         </tr>`;
     });
     
-    body.innerHTML = html || `<tr><td colspan="4" class="p-8 text-center text-slate-400 italic">No targets proposed yet for ${currentCatObj.name}. Add one po!</td></tr>`;
+    body.innerHTML = html || `<tr><td colspan="5" class="p-8 text-center text-slate-400 italic">No targets proposed yet for ${currentCatObj.name}. Add one po!</td></tr>`;
     
     document.getElementById('est-total-cost').innerText = '₱' + sumTotalEstimates.toLocaleString('en-US', {minimumFractionDigits:2});
     document.getElementById('est-member-count').innerText = currentCatObj.members.length + " pax";
     
-    const absoluteFinalPerHead = sumTotalEstimates / currentCatObj.members.length;
-    document.getElementById('est-final-per-head').innerText = '₱' + absoluteFinalPerHead.toLocaleString('en-US', {minimumFractionDigits:2});
+    document.getElementById('est-final-per-head').innerText = '₱' + sumMyProjectedAmbagan.toLocaleString('en-US', {minimumFractionDigits:2});
   },
 
   // =========================================================================
@@ -793,8 +800,33 @@ const App = {
       } else if (id === 'estimator-modal') {
         if (title) title.innerHTML = `<i class="fas fa-folder-plus text-sm"></i> Add Proposed Trip Goal`;
         if (submitBtn) submitBtn.innerText = "Add Pipeline Line Item";
+        App.populateEstimatorMembers();
       }
     }
+  },
+
+  populateEstimatorMembers: function() {
+    const activeCatId = document.getElementById('filter-category').value;
+    const cat = App.state.categories.find(c => c.id === activeCatId) || App.state.categories[0];
+    const target = document.getElementById('est-form-members-checkboxes');
+    if(!cat || !target) return;
+    
+    let html = '';
+    cat.members.forEach(m => {
+      html += `
+        <label class="flex items-center gap-2 p-1.5 hover:bg-slate-500/10 dark:hover:bg-slate-800/60 rounded cursor-pointer transition">
+          <input type="checkbox" name="est_member" value="${m}" checked class="accent-orange-500">
+          <span class="truncate text-[10px] text-slate-700 dark:text-slate-300 font-bold">${App.resolveUserDisplayName(m)}</span>
+        </label>`;
+    });
+    target.innerHTML = html;
+    const selectAll = document.getElementById('est-select-all');
+    if (selectAll) selectAll.checked = true;
+  },
+
+  toggleAllEstimatorMembers: function(checked) {
+    const checkboxes = document.querySelectorAll('input[name="est_member"]');
+    checkboxes.forEach(cb => cb.checked = checked);
   },
 
   syncSplittingForm: function() {
@@ -1077,11 +1109,20 @@ const App = {
     
     const estId = document.getElementById('form-estimator-id').value;
     const activeCatId = document.getElementById('filter-category').value;
+    const selectedParticipants = Array.from(document.querySelectorAll('input[name="est_member"]:checked')).map(cb => cb.value.toLowerCase());
+
+    if (selectedParticipants.length === 0) {
+      alert("Wait! Please select at least one member who will join this item.");
+      App.hideGlobalLoader();
+      return;
+    }
+
     const payload = {
       id: estId,
       catId: activeCatId === '*' ? App.state.categories[0].id : activeCatId,
       title: document.getElementById('est-form-title').value,
-      amount: parseFloat(document.getElementById('est-form-amount').value)
+      amount: parseFloat(document.getElementById('est-form-amount').value),
+      participants: selectedParticipants
     };
 
     const action = estId ? "updateEstimatorLine" : "commitEstimatorProposedLine";
@@ -1111,6 +1152,13 @@ const App = {
     document.getElementById('form-estimator-id').value = line.id;
     document.getElementById('est-form-title').value = line.title;
     document.getElementById('est-form-amount').value = line.amount;
+    
+    App.populateEstimatorMembers();
+    const participants = line.participants || [];
+    const checkBoxes = document.querySelectorAll('input[name="est_member"]');
+    checkBoxes.forEach(box => {
+      box.checked = participants.includes(box.value.toLowerCase());
+    });
 
     App.openModal('estimator-modal');
   },
