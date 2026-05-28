@@ -763,17 +763,17 @@ const App = {
   openEditCategory: function(catId) {
     const cat = App.state.categories.find(c => c.id === catId);
     if(!cat) return;
-
+    
     document.getElementById('form-category-id').value = cat.id;
     document.getElementById('cat-form-name').value = cat.name;
     document.getElementById('cat-form-desc').value = cat.description;
     document.getElementById('cat-form-type').value = cat.type;
-
+    
     const checkboxes = document.querySelectorAll('input[name="cat_members"]');
     checkboxes.forEach(cb => {
       cb.checked = cat.members.includes(cb.value.toLowerCase());
     });
-
+    
     document.getElementById('category-modal-title').innerHTML = '<i class="fas fa-edit text-sm"></i> Edit Gasto Group';
     const submitBtn = document.querySelector('#category-form button[type="submit"]');
     if(submitBtn) submitBtn.innerText = "Update Group Details";
@@ -795,24 +795,24 @@ const App = {
   openEditExpense: function(expId) {
     const exp = App.state.expenses.find(e => e.id === expId);
     if(!exp) return;
-
+    
     document.getElementById('form-expense-id').value = exp.id;
     document.getElementById('form-title').value = exp.title;
     document.getElementById('form-amount').value = exp.amount;
     document.getElementById('form-date').value = exp.date;
     document.getElementById('form-category').value = exp.catId;
     document.getElementById('form-category').disabled = true;
-
+    
     App.handleFormCategoryChange();
     document.getElementById('form-paidby').value = exp.paidBy;
-
+    
     const typeRadios = document.querySelectorAll('input[name="expense_type"]');
     typeRadios.forEach(r => {
       if(r.value === exp.type) r.checked = true;
     });
-
+    
     App.toggleSplitMode(exp.type);
-
+    
     if(exp.type === 'Individual') {
       const inputs = document.querySelectorAll('.split-input');
       inputs.forEach(inp => {
@@ -821,7 +821,7 @@ const App = {
         if(breakdownItem) inp.value = breakdownItem.share;
       });
     }
-
+    
     document.getElementById('expense-modal-title').innerHTML = '<i class="fas fa-edit text-sm"></i> Edit Gastos Details';
     const submitBtn = document.querySelector('#expense-form button[type="submit"]');
     if(submitBtn) submitBtn.innerText = "Update Expense Entry";
@@ -843,11 +843,11 @@ const App = {
   openEditEstimator: function(estId) {
     const est = App.state.estimatorLogs.find(e => e.id === estId);
     if(!est) return;
-
+    
     document.getElementById('form-estimator-id').value = est.id;
     document.getElementById('est-form-title').value = est.title;
     document.getElementById('est-form-amount').value = est.amount;
-
+    
     document.getElementById('estimator-modal-title').innerHTML = '<i class="fas fa-edit"></i> Edit Proposed Trip Goal';
     const submitBtn = document.querySelector('#estimator-form button[type="submit"]');
     if(submitBtn) submitBtn.innerText = "Update Pipeline Item";
