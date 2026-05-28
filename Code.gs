@@ -565,7 +565,8 @@ function getBudgetEstimatesData() {
       catId: data[i][1], 
       title: data[i][2], 
       amount: parseFloat(data[i][3]) || 0,
-      createdBy: data[i][4] ? data[i][4].toLowerCase() : ""
+      createdBy: data[i][4] ? data[i][4].toLowerCase() : "",
+      participants: data[i][5] ? JSON.parse(data[i][5]) : []
     });
   }
   return list;
@@ -637,6 +638,7 @@ function updateEstimatorLine(payload) {
 
     sheet.getRange(rowIndex, 2, 1, 2).setValues([[payload.catId, payload.title]]);
     sheet.getRange(rowIndex, 4).setValue(payload.amount);
+    sheet.getRange(rowIndex, 6).setValue(JSON.stringify(payload.participants));
     
     return { success: true };
   } finally {
@@ -687,7 +689,7 @@ function commitEstimatorProposedLine(payload) {
     const activeUser = Session.getActiveUser().getEmail().toLowerCase();
     
     const newId = "EST_" + Math.floor(10000 + Math.random() * 90000);
-    sheet.appendRow([newId, payload.catId, payload.title, payload.amount, activeUser]);
+    sheet.appendRow([newId, payload.catId, payload.title, payload.amount, activeUser, JSON.stringify(payload.participants)]);
     return { success: true };
   } finally {
     lock.releaseLock();
