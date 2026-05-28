@@ -998,7 +998,7 @@ const App = {
   },
 
   deleteCategory: function(id) {
-    if (!confirm("Are you sure you want to delete this group? It will be marked as Inactive.")) return;
+    if (!confirm("Are you sure you want to delete this group? It will be marked as Archived.")) return;
     App.showGlobalLoader();
     google.script.run
       .withSuccessHandler(() => {
