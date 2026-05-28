@@ -57,6 +57,22 @@ function recordDirectSettlement(settlementPayload) {
   return DatabaseController.recordDirectSettlement(settlementPayload);
 }
 
+function updateCategoryWorkspace(payload) {
+  return DatabaseController.updateCategoryWorkspace(payload);
+}
+
+function deleteCategoryWorkspace(catId) {
+  return DatabaseController.deleteCategoryWorkspace(catId);
+}
+
+function updateExpenseRow(payload) {
+  return DatabaseController.updateExpenseRow(payload);
+}
+
+function deleteExpenseRow(expenseId, categoryName) {
+  return DatabaseController.deleteExpenseRow(expenseId, categoryName);
+}
+
 // =========================================================================
 // SECURITY LAYER ENGINE MODULE
 // =========================================================================
@@ -133,7 +149,14 @@ const DatabaseController = {
           } catch(e) {
             members = [];
           }
-          output.push({ id: catId, name: data[i][1], description: data[i][2], members: members });
+          output.push({
+            id: catId,
+            name: data[i][1],
+            description: data[i][2],
+            createdBy: data[i][3],
+            members: members,
+            type: data[i][5]
+          });
         }
       }
     }
@@ -161,7 +184,8 @@ const DatabaseController = {
           id: data[i][0], catId: catId, title: data[i][2], amount: parseFloat(data[i][3]) || 0,
           type: data[i][4], date: data[i][5] ? Utilities.formatDate(new Date(data[i][5]), Session.getScriptTimeZone(), "yyyy-MM-dd") : "",
           yearMonth: data[i][6] ? String(data[i][6]).trim() : "", paidBy: data[i][7] ? String(data[i][7]).toLowerCase().trim() : "", 
-          breakdown: cleanBreakdown, receipt: data[i][9] || ""
+          breakdown: cleanBreakdown, receipt: data[i][9] || "",
+          recordedBy: data[i][10] ? data[i][10].toLowerCase() : ""
         });
       }
     }
@@ -208,32 +232,108 @@ const DatabaseController = {
       const headers = [["Expense ID", "Category ID", "Title", "Amount", "Type", "Expense Date", "Year-Month", "Paid By (Abono)", "Participant Breakdown JSON", "Receipt URL"]];
       templateTab.getRange(1, 1, 1, 10).setValues(headers).setFontWeight("bold").setBackground("#0f172a").setFontColor("#f8fafc");
       
-      const accessSheet = ss.getSheetByName("ACCESS_RIGHTS");
-      const accessData = accessSheet.getDataRange().getValues();
-      
-      payload.members.forEach(memberEmail => {
-        let matched = false;
-        for(let r = 1; r < accessData.length; r++) {
-          if(accessData[r][0].toLowerCase() === memberEmail.toLowerCase()) {
-            let existingCats = [];
-            try {
-              existingCats = accessData[r][1] ? JSON.parse(accessData[r][1]) : [];
-            } catch(e) {
-              existingCats = [];
-            }
-            if(!existingCats.includes(newCatId) && !existingCats.includes("*")) {
-              existingCats.push(newCatId);
-              accessSheet.getRange(r + 1, 2).setValue(JSON.stringify(existingCats));
-            }
-            matched = true; break;
-          }
-        }
-        if(!matched) {
-          accessSheet.appendRow([memberEmail.toLowerCase(), JSON.stringify([newCatId]), JSON.stringify(["*"])]);
-        }
-      });
+      this.syncCategoryAccess(newCatId, payload.members);
       
       return { success: true, catId: newCatId };
+    } finally {
+      lock.releaseLock();
+    }
+  },
+
+  syncCategoryAccess: function(catId, members) {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const accessSheet = ss.getSheetByName("ACCESS_RIGHTS");
+    const accessData = accessSheet.getDataRange().getValues();
+    const membersLower = members.map(m => m.toLowerCase().trim());
+    const processedEmails = [];
+
+    for (let r = 1; r < accessData.length; r++) {
+      const email = accessData[r][0].toLowerCase().trim();
+      processedEmails.push(email);
+      let existingCats = [];
+      try {
+        existingCats = accessData[r][1] ? JSON.parse(accessData[r][1]) : [];
+      } catch (e) {
+        existingCats = [];
+      }
+
+      const hasId = existingCats.includes(catId);
+      const shouldHaveId = membersLower.includes(email);
+      const isSuperAdmin = existingCats.includes("*");
+
+      if (shouldHaveId && !hasId && !isSuperAdmin) {
+        existingCats.push(catId);
+        accessSheet.getRange(r + 1, 2).setValue(JSON.stringify(existingCats));
+      } else if (!shouldHaveId && hasId) {
+        const index = existingCats.indexOf(catId);
+        if (index > -1) {
+          existingCats.splice(index, 1);
+          accessSheet.getRange(r + 1, 2).setValue(JSON.stringify(existingCats));
+        }
+      }
+    }
+
+    // Add new members who don't have an entry yet
+    membersLower.forEach(email => {
+      if (!processedEmails.includes(email)) {
+        accessSheet.appendRow([email, JSON.stringify([catId]), JSON.stringify(["*"])]);
+      }
+    });
+  },
+
+  updateCategoryWorkspace: function(payload) {
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try {
+      const activeEmail = Session.getActiveUser().getEmail().toLowerCase();
+      const auth = SecurityEngine.validateUserAccess(activeEmail);
+      if (auth.profile.role !== 'Admin') throw new Error("Unauthorized: Only Admins can edit groups.");
+
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const sheet = ss.getSheetByName("CATEGORY_MASTER");
+      const data = sheet.getDataRange().getValues();
+
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][0] === payload.id) {
+          const oldName = data[i][1];
+          sheet.getRange(i + 1, 2, 1, 2).setValues([[payload.name, payload.description]]);
+          sheet.getRange(i + 1, 5, 1, 2).setValues([[JSON.stringify(payload.members), payload.type]]);
+
+          if (oldName !== payload.name) {
+            const oldSheet = ss.getSheetByName(oldName);
+            if (oldSheet) oldSheet.setName(payload.name);
+          }
+
+          this.syncCategoryAccess(payload.id, payload.members);
+
+          return { success: true };
+        }
+      }
+      throw new Error("Category not found.");
+    } finally {
+      lock.releaseLock();
+    }
+  },
+
+  deleteCategoryWorkspace: function(catId) {
+     const lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try {
+      const activeEmail = Session.getActiveUser().getEmail().toLowerCase();
+      const auth = SecurityEngine.validateUserAccess(activeEmail);
+      if (auth.profile.role !== 'Admin') throw new Error("Unauthorized: Only Admins can delete groups.");
+
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const sheet = ss.getSheetByName("CATEGORY_MASTER");
+      const data = sheet.getDataRange().getValues();
+      
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][0] === catId) {
+          sheet.getRange(i + 1, 8).setValue("Inactive");
+          return { success: true };
+        }
+      }
+      throw new Error("Category not found.");
     } finally {
       lock.releaseLock();
     }
@@ -246,18 +346,116 @@ const DatabaseController = {
       const ss = SpreadsheetApp.getActiveSpreadsheet();
       const masterSheet = ss.getSheetByName("EXPENSES_MASTER");
       const categorySheet = ss.getSheetByName(expenseObj.categoryName);
+      const activeUser = Session.getActiveUser().getEmail().toLowerCase();
       
       const newId = "EXP_" + new Date().getFullYear() + "_" + Math.floor(10000 + Math.random() * 90000);
       const rowData = [
         newId, expenseObj.catId, expenseObj.title, expenseObj.amount, expenseObj.type,
         expenseObj.date, expenseObj.date.substring(0,7), expenseObj.paidBy.toLowerCase(),
-        JSON.stringify(expenseObj.breakdown), expenseObj.receipt || ""
+        JSON.stringify(expenseObj.breakdown), expenseObj.receipt || "",
+        activeUser
       ];
       
       masterSheet.appendRow(rowData);
       if(categorySheet) categorySheet.appendRow(rowData);
       
       return { success: true, id: newId };
+    } finally {
+      lock.releaseLock();
+    }
+  },
+
+  updateExpenseRow: function(expenseObj) {
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try {
+      const activeEmail = Session.getActiveUser().getEmail().toLowerCase();
+      const auth = SecurityEngine.validateUserAccess(activeEmail);
+
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const masterSheet = ss.getSheetByName("EXPENSES_MASTER");
+      const data = masterSheet.getDataRange().getValues();
+
+      let rowIndex = -1;
+      let recordedBy = "";
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][0] === expenseObj.id) {
+          rowIndex = i + 1;
+          recordedBy = data[i][10] ? data[i][10].toLowerCase() : "";
+          break;
+        }
+      }
+
+      if (rowIndex === -1) throw new Error("Expense not found.");
+      if (auth.profile.role !== 'Admin' && recordedBy !== activeEmail) {
+        throw new Error("Unauthorized: You can only edit expenses you recorded.");
+      }
+
+      const rowData = [
+        expenseObj.id, expenseObj.catId, expenseObj.title, expenseObj.amount, expenseObj.type,
+        expenseObj.date, expenseObj.date.substring(0,7), expenseObj.paidBy.toLowerCase(),
+        JSON.stringify(expenseObj.breakdown), expenseObj.receipt || ""
+      ];
+
+      masterSheet.getRange(rowIndex, 1, 1, 10).setValues([rowData]);
+
+      const categorySheet = ss.getSheetByName(expenseObj.categoryName);
+      if (categorySheet) {
+        const catData = categorySheet.getDataRange().getValues();
+        for (let j = 1; j < catData.length; j++) {
+          if (catData[j][0] === expenseObj.id) {
+            categorySheet.getRange(j + 1, 1, 1, 10).setValues([rowData]);
+            break;
+          }
+        }
+      }
+
+      return { success: true };
+    } finally {
+      lock.releaseLock();
+    }
+  },
+
+  deleteExpenseRow: function(expenseId, categoryName) {
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try {
+      const activeEmail = Session.getActiveUser().getEmail().toLowerCase();
+      const auth = SecurityEngine.validateUserAccess(activeEmail);
+
+      const ss = SpreadsheetApp.getActiveSpreadsheet();
+      const masterSheet = ss.getSheetByName("EXPENSES_MASTER");
+      const data = masterSheet.getDataRange().getValues();
+
+      let rowIndex = -1;
+      let recordedBy = "";
+      for (let i = 1; i < data.length; i++) {
+        if (data[i][0] === expenseId) {
+          rowIndex = i + 1;
+          recordedBy = data[i][10] ? data[i][10].toLowerCase() : "";
+          break;
+        }
+      }
+
+      if (rowIndex === -1) throw new Error("Expense not found.");
+      if (auth.profile.role !== 'Admin' && recordedBy !== activeEmail) {
+        throw new Error("Unauthorized: You can only delete expenses you recorded.");
+      }
+
+      masterSheet.deleteRow(rowIndex);
+
+      const categorySheet = ss.getSheetByName(categoryName);
+      if (categorySheet) {
+        const catData = categorySheet.getDataRange().getValues();
+        for (let j = 1; j < catData.length; j++) {
+          if (catData[j][0] === expenseId) {
+            categorySheet.deleteRow(j + 1);
+            break;
+          }
+        }
+      }
+
+      return { success: true };
     } finally {
       lock.releaseLock();
     }
@@ -362,7 +560,13 @@ function getBudgetEstimatesData() {
   const data = sheet.getDataRange().getValues();
   const list = [];
   for(let i = 1; i < data.length; i++) {
-    list.push({ id: data[i][0], catId: data[i][1], title: data[i][2], amount: parseFloat(data[i][3]) || 0 });
+    list.push({
+      id: data[i][0],
+      catId: data[i][1],
+      title: data[i][2],
+      amount: parseFloat(data[i][3]) || 0,
+      createdBy: data[i][4] ? data[i][4].toLowerCase() : ""
+    });
   }
   return list;
 }
@@ -405,6 +609,74 @@ function saveQRHubRecord(payload) {
   }
 }
 
+function updateEstimatorLine(payload) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const activeEmail = Session.getActiveUser().getEmail().toLowerCase();
+    const auth = SecurityEngine.validateUserAccess(activeEmail);
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName("BUDGET_ESTIMATOR");
+    const data = sheet.getDataRange().getValues();
+
+    let rowIndex = -1;
+    let createdBy = "";
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === payload.id) {
+        rowIndex = i + 1;
+        createdBy = data[i][4] ? data[i][4].toLowerCase() : "";
+        break;
+      }
+    }
+
+    if (rowIndex === -1) throw new Error("Line item not found.");
+    if (auth.profile.role !== 'Admin' && createdBy !== activeEmail) {
+      throw new Error("Unauthorized: You can only edit your own proposed goals.");
+    }
+
+    sheet.getRange(rowIndex, 2, 1, 2).setValues([[payload.catId, payload.title]]);
+    sheet.getRange(rowIndex, 4).setValue(payload.amount);
+
+    return { success: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function deleteEstimatorLine(estId) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const activeEmail = Session.getActiveUser().getEmail().toLowerCase();
+    const auth = SecurityEngine.validateUserAccess(activeEmail);
+
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    const sheet = ss.getSheetByName("BUDGET_ESTIMATOR");
+    const data = sheet.getDataRange().getValues();
+
+    let rowIndex = -1;
+    let createdBy = "";
+    for (let i = 1; i < data.length; i++) {
+      if (data[i][0] === estId) {
+        rowIndex = i + 1;
+        createdBy = data[i][4] ? data[i][4].toLowerCase() : "";
+        break;
+      }
+    }
+
+    if (rowIndex === -1) throw new Error("Line item not found.");
+    if (auth.profile.role !== 'Admin' && createdBy !== activeEmail) {
+      throw new Error("Unauthorized: You can only delete your own proposed goals.");
+    }
+
+    sheet.deleteRow(rowIndex);
+    return { success: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function commitEstimatorProposedLine(payload) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -412,9 +684,10 @@ function commitEstimatorProposedLine(payload) {
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     const sheet = ss.getSheetByName("BUDGET_ESTIMATOR");
     if(!sheet) throw new Error("Missing tab: BUDGET_ESTIMATOR");
+    const activeUser = Session.getActiveUser().getEmail().toLowerCase();
     
     const newId = "EST_" + Math.floor(10000 + Math.random() * 90000);
-    sheet.appendRow([newId, payload.catId, payload.title, payload.amount]);
+    sheet.appendRow([newId, payload.catId, payload.title, payload.amount, activeUser]);
     return { success: true };
   } finally {
     lock.releaseLock();
