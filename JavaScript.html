@@ -343,27 +343,27 @@ const App = {
         `;
       }
 
-      const typeIcons = {
-        'Gala Era': 'fas fa-plane-departure text-blue-400',
-        'Foodie Adventure': 'fas fa-utensils text-orange-400',
-        'Staycation': 'fas fa-hotel text-indigo-400',
-        'Fam Bam': 'fas fa-house-chimney text-emerald-400',
-        'Work Grind': 'fas fa-laptop-code text-slate-500',
-        'Barkada Goals': 'fas fa-people-group text-pink-400'
+      const typeConfig = {
+        'Travel': { icon: 'fas fa-plane-departure text-blue-400', label: 'Gala Era' },
+        'Food': { icon: 'fas fa-utensils text-orange-400', label: 'Foodie Adventure' },
+        'Staycation': { icon: 'fas fa-hotel text-indigo-400', label: 'Chill & Relax Mode' },
+        'Family': { icon: 'fas fa-house-chimney text-emerald-400', label: 'Fam Bam' },
+        'Work': { icon: 'fas fa-laptop-code text-slate-500', label: 'Work Grind' },
+        'Friends': { icon: 'fas fa-people-group text-pink-400', label: 'Barkada Goals' }
       };
-      const categoryIconClass = typeIcons[cat.type] || 'fas fa-layer-group text-purple-400';
+      const config = typeConfig[cat.type] || { icon: 'fas fa-layer-group text-purple-400', label: cat.type };
 
       html += `
         <div class="bg-white dark:bg-slate-900/30 p-5 rounded-3xl border border-slate-200 dark:border-slate-900 flex flex-col justify-between space-y-4 shadow-sm dark:shadow-none hover:shadow-md transition duration-200">
           <div>
             <div class="flex items-center justify-between">
-              <span class="px-2 py-0.5 font-mono text-[9px] bg-pink-500/10 text-pink-600 dark:text-pink-400 rounded-md uppercase border border-pink-500/20 font-bold">${cat.type}</span>
+              <span class="px-2 py-0.5 font-mono text-[9px] bg-pink-500/10 text-pink-600 dark:text-pink-400 rounded-md uppercase border border-pink-500/20 font-bold">${config.label}</span>
               <div class="flex items-center gap-2">
                 ${actionsHtml}
                 <span class="text-[10px] text-slate-400 font-mono">${cat.id}</span>
               </div>
             </div>
-            <h4 class="text-sm font-black text-slate-900 dark:text-white mt-2 flex items-center gap-1.5"><i class="${categoryIconClass}"></i> ${cat.name}</h4>
+            <h4 class="text-sm font-black text-slate-900 dark:text-white mt-2 flex items-center gap-1.5"><i class="${config.icon}"></i> ${cat.name}</h4>
             <p class="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">${cat.description || 'No summary notes written.'}</p>
           </div>
           <div class="border-t border-slate-100 dark:border-slate-800/60 pt-3 flex items-center justify-between">
