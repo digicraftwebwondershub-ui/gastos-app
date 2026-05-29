@@ -474,6 +474,8 @@ const App = {
     const cardsContainer = document.getElementById('settlement-simplification-cards');
     if(!cardsContainer) return;
     let html = '';
+    const myEmail = App.state.user ? App.state.user.email.toLowerCase() : "";
+    const isAdmin = App.state.user && App.state.user.role === 'Admin';
 
     matrices.myDebtList.forEach(d => {
       html += `
@@ -505,6 +507,31 @@ const App = {
           </div>
         </div>`;
     });
+
+    if (isAdmin) {
+      const otherDebts = matrices.simplifiedDebts.filter(d => d.from !== myEmail && d.to !== myEmail);
+      if (otherDebts.length > 0) {
+        html += `<div class="col-span-full mt-8 mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">
+          <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><i class="fas fa-shield-halved text-indigo-400"></i> System Admin View: All Pending Debts</h3>
+        </div>`;
+        otherDebts.forEach(d => {
+          html += `
+            <div class="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 p-4 rounded-3xl flex flex-col justify-between space-y-4 shadow-sm hover:shadow-md transition">
+              <div>
+                <p class="text-[9px] font-mono text-indigo-500 uppercase tracking-widest font-bold flex items-center gap-1"><i class="fas fa-circle-nodes"></i> Network Liability</p>
+                <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">
+                  <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(d.from)}</b> owes 
+                  <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(d.to)}</b>
+                </h4>
+              </div>
+              <div class="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-3">
+                <span class="text-sm font-mono font-black text-slate-900 dark:text-white">₱${d.amount.toFixed(2)}</span>
+                <button onclick="App.initiateSettlementAction(null, ${d.amount}, false, '${d.from}', '${d.to}')" class="bg-slate-900 dark:bg-slate-100 text-white dark:text-slate-950 text-[10px] font-black px-3 py-1.5 rounded-xl uppercase transition hover:bg-pink-500 dark:hover:bg-pink-400 dark:hover:text-white shadow-sm">Override Settlement</button>
+              </div>
+            </div>`;
+        });
+      }
+    }
 
     cardsContainer.innerHTML = html || `<p class="text-slate-400 italic text-xs text-center col-span-3 py-8 bg-white dark:bg-slate-900/20 p-4 rounded-2xl border border-dashed border-slate-200 dark:border-slate-800">All settled! Naks! Wala syang utang ngayon! ✨</p>`;
   },
@@ -680,16 +707,26 @@ const App = {
     }, 110);
   },
 
-  initiateSettlementAction: function(peerEmail, exactAmt, isReceivable = false) {
+  initiateSettlementAction: function(peerEmail, exactAmt, isReceivable = false, overrideFrom = null, overrideTo = null) {
     App.openModal('settle-modal');
+    const catSelect = document.getElementById('settle-form-cat');
     const fromSelect = document.getElementById('settle-form-from');
     const toSelect = document.getElementById('settle-form-to');
     const amtInput = document.getElementById('settle-form-amount');
     const dateInput = document.getElementById('settle-form-date');
     const myEmail = App.state.user ? App.state.user.email : "";
 
-    if(fromSelect) fromSelect.innerHTML = `<option value="${isReceivable ? peerEmail : myEmail}">${App.resolveUserDisplayName(isReceivable ? peerEmail : myEmail)}</option>`;
-    if(toSelect) toSelect.innerHTML = `<option value="${isReceivable ? myEmail : peerEmail}">${App.resolveUserDisplayName(isReceivable ? myEmail : peerEmail)}</option>`;
+    const filterCatEl = document.getElementById('filter-category');
+    const activeFilterCat = filterCatEl ? filterCatEl.value : '*';
+    if (catSelect && activeFilterCat !== '*') {
+      catSelect.value = activeFilterCat;
+    }
+
+    const finalFrom = overrideFrom || (isReceivable ? peerEmail : myEmail);
+    const finalTo = overrideTo || (isReceivable ? myEmail : peerEmail);
+
+    if(fromSelect) fromSelect.innerHTML = `<option value="${finalFrom}">${App.resolveUserDisplayName(finalFrom)}</option>`;
+    if(toSelect) toSelect.innerHTML = `<option value="${finalTo}">${App.resolveUserDisplayName(finalTo)}</option>`;
     if(amtInput) amtInput.value = exactAmt.toFixed(2);
     if(dateInput) dateInput.value = new Date().toISOString().substring(0,10);
   },
