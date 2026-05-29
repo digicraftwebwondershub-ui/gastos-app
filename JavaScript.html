@@ -5,7 +5,8 @@
 const App = {
   state: {
     user: null, rights: null, categories: [], expenses: [], settlements: [], systemUsers: [], activeView: 'dashboard',
-    qrDirectory: [], estimatorLogs: [], themeMode: 'light'
+    qrDirectory: [], estimatorLogs: [], themeMode: 'light',
+    activeLeaderboardTab: 0
   },
 
   init: function() {
@@ -828,17 +829,42 @@ const App = {
   renderLeaderboardView: function(expData) {
     const container = document.getElementById('leaderboard-container');
     if(!container) return;
+
+    const filterCatEl = document.getElementById('filter-category');
+    const activeCatId = filterCatEl ? filterCatEl.value : '*';
     const userAggMap = {};
+
+    // Initialize pool based on filter
+    let pool = [];
+    if (activeCatId === '*') {
+      pool = App.state.systemUsers.map(u => u.email.toLowerCase().trim());
+    } else {
+      const cat = App.state.categories.find(c => c.id === activeCatId);
+      if (cat) pool = cat.members.map(m => m.toLowerCase().trim());
+    }
+
+    pool.forEach(email => {
+      userAggMap[email] = {
+        email: email, grossSpend: 0, totalAbono: 0, debtExposures: 0, timeToPay: [], countRecorded: 0, participationCount: 0
+      };
+    });
 
     expData.forEach(exp => {
       const payer = exp.paidBy.toLowerCase().trim();
-      if(!userAggMap[payer]) userAggMap[payer] = { email: payer, grossSpend: 0, totalAbono: 0, debtExposures: 0, timeToPay: [] };
+      if(!userAggMap[payer]) userAggMap[payer] = { email: payer, grossSpend: 0, totalAbono: 0, debtExposures: 0, timeToPay: [], countRecorded: 0, participationCount: 0 };
       userAggMap[payer].totalAbono += exp.amount;
+
+      const recorder = exp.recordedBy ? exp.recordedBy.toLowerCase().trim() : "";
+      if (recorder) {
+        if (!userAggMap[recorder]) userAggMap[recorder] = { email: recorder, grossSpend: 0, totalAbono: 0, debtExposures: 0, timeToPay: [], countRecorded: 0, participationCount: 0 };
+        userAggMap[recorder].countRecorded++;
+      }
 
       exp.breakdown.forEach(p => {
         const dEmail = p.email.toLowerCase().trim();
-        if(!userAggMap[dEmail]) userAggMap[dEmail] = { email: dEmail, grossSpend: 0, totalAbono: 0, debtExposures: 0, timeToPay: [] };
+        if(!userAggMap[dEmail]) userAggMap[dEmail] = { email: dEmail, grossSpend: 0, totalAbono: 0, debtExposures: 0, timeToPay: [], countRecorded: 0, participationCount: 0 };
         userAggMap[dEmail].grossSpend += p.share;
+        if (p.share > 0) userAggMap[dEmail].participationCount++;
         if(payer !== dEmail) userAggMap[dEmail].debtExposures += p.share;
       });
     });
@@ -885,6 +911,9 @@ const App = {
       .map(email => ({ email, saving: budgetMasterMap[email].estimated - budgetMasterMap[email].actual }))
       .sort((a,b) => b.saving - a.saving);
 
+    const sortedByAuditor = Object.values(userAggMap).sort((a,b) => b.countRecorded - a.countRecorded);
+    const sortedByParticipation = Object.values(userAggMap).sort((a,b) => b.participationCount - a.participationCount);
+
     const awards = [
       {
         title: "The King of Abono",
@@ -893,8 +922,11 @@ const App = {
         color: "text-amber-500",
         bg: "bg-amber-500/10",
         winner: sortedByAbono[0] ? App.resolveUserDisplayName(sortedByAbono[0].email) : "N/A",
-        value: sortedByAbono[0] ? `₱${sortedByAbono[0].totalAbono.toLocaleString()}` : "₱0",
-        desc: "Laging handang sumalo para sa barkada."
+        value: sortedByAbono[0] ? `₱${sortedByAbono[0].totalAbono.toLocaleString('en-US', {minimumFractionDigits:2})}` : "₱0",
+        desc: "Laging handang sumalo para sa barkada.",
+        rankData: sortedByAbono,
+        metric: 'totalAbono',
+        format: (v) => '₱' + v.toLocaleString('en-US', {minimumFractionDigits:2})
       },
       {
         title: "The Big Spender",
@@ -903,8 +935,11 @@ const App = {
         color: "text-pink-500",
         bg: "bg-pink-500/10",
         winner: sortedBySpend[0] ? App.resolveUserDisplayName(sortedBySpend[0].email) : "N/A",
-        value: sortedBySpend[0] ? `₱${sortedBySpend[0].grossSpend.toLocaleString()}` : "₱0",
-        desc: "Sulit ang bawat sentimo sa mga gala."
+        value: sortedBySpend[0] ? `₱${sortedBySpend[0].grossSpend.toLocaleString('en-US', {minimumFractionDigits:2})}` : "₱0",
+        desc: "Sulit ang bawat sentimo sa mga gala.",
+        rankData: sortedBySpend,
+        metric: 'grossSpend',
+        format: (v) => '₱' + v.toLocaleString('en-US', {minimumFractionDigits:2})
       },
       {
         title: "The MVP Speedster",
@@ -914,7 +949,23 @@ const App = {
         bg: "bg-blue-500/10",
         winner: sortedBySpeed[0] ? App.resolveUserDisplayName(sortedBySpeed[0].email) : "N/A",
         value: sortedBySpeed[0] ? `${(sortedBySpeed[0].timeToPay.reduce((s,x)=>s+x,0)/sortedBySpeed[0].timeToPay.length).toFixed(1)} Days` : "N/A",
-        desc: "Mabilis pa sa alas-kwatro magbayad."
+        desc: "Mabilis pa sa alas-kwatro magbayad.",
+        rankData: sortedBySpeed,
+        metric: 'timeToPay',
+        format: (v) => (v.length > 0 ? (v.reduce((s,x)=>s+x,0)/v.length).toFixed(1) : '0') + ' Days'
+      },
+      {
+        title: "The Social Butterfly",
+        subtitle: "Most Participated Items",
+        icon: "fa-people-group",
+        color: "text-teal-500",
+        bg: "bg-teal-500/10",
+        winner: sortedByParticipation[0] ? App.resolveUserDisplayName(sortedByParticipation[0].email) : "N/A",
+        value: sortedByParticipation[0] ? `${sortedByParticipation[0].participationCount} Items` : "0 Items",
+        desc: "Laging present at kasama sa bawat gala.",
+        rankData: sortedByParticipation,
+        metric: 'participationCount',
+        format: (v) => v + ' Items'
       },
       {
         title: "The Budget Master",
@@ -923,39 +974,154 @@ const App = {
         color: "text-emerald-500",
         bg: "bg-emerald-500/10",
         winner: sortedBySaving[0] ? App.resolveUserDisplayName(sortedBySaving[0].email) : "N/A",
-        value: sortedBySaving[0] ? `₱${sortedBySaving[0].saving.toLocaleString()}` : "₱0",
-        desc: "Under budget lagi! Wais sa gastusan."
+        value: sortedBySaving[0] ? `₱${sortedBySaving[0].saving.toLocaleString('en-US', {minimumFractionDigits:2})}` : "₱0",
+        desc: "Under budget lagi! Wais sa gastusan.",
+        rankData: sortedBySaving,
+        metric: 'saving',
+        format: (v) => '₱' + v.toLocaleString('en-US', {minimumFractionDigits:2})
+      },
+      {
+        title: "The Reliable Auditor",
+        subtitle: "Most Expenses Recorded",
+        icon: "fa-clipboard-check",
+        color: "text-purple-500",
+        bg: "bg-purple-500/10",
+        winner: sortedByAuditor[0] ? App.resolveUserDisplayName(sortedByAuditor[0].email) : "N/A",
+        value: sortedByAuditor[0] ? `${sortedByAuditor[0].countRecorded} Entries` : "0 Entries",
+        desc: "Maasahan sa pag-track ng lahat ng gastos.",
+        rankData: sortedByAuditor,
+        metric: 'countRecorded',
+        format: (v) => v + ' Entries'
       }
     ];
 
     let html = `
-      <div class="text-center mb-8">
-        <h3 class="text-xl font-black text-slate-900 dark:text-white uppercase tracking-widest">🏆 FinTrack Hall of Fame</h3>
-        <p class="text-xs text-slate-500 mt-1 font-medium">Recognizing the legends of the Ambagan Matrix</p>
+      <div class="text-center mb-10">
+        <div class="inline-block p-4 bg-gradient-to-tr from-amber-400 to-pink-500 rounded-3xl shadow-lg shadow-pink-500/20 mb-4 transform hover:rotate-12 transition-transform duration-500">
+          <i class="fas fa-trophy text-3xl text-white animate-pulse"></i>
+        </div>
+        <h3 class="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-[0.3em] font-mono">Hall of Fame</h3>
+        <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-2 font-black uppercase tracking-[0.2em]">Recognizing the legends of the Ambagan Matrix</p>
       </div>
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">`;
+
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">`;
 
     awards.forEach(a => {
       html += `
-        <div class="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 p-6 rounded-[2.5rem] shadow-sm hover:shadow-md transition-all duration-300 group hover:-translate-y-1">
-          <div class="flex flex-col items-center text-center space-y-4">
-            <div class="${a.bg} ${a.color} w-16 h-16 rounded-3xl flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform duration-500">
+        <div class="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 p-6 rounded-[2.5rem] shadow-sm hover:shadow-2xl transition-all duration-700 group hover:-translate-y-3 relative overflow-hidden">
+          <div class="absolute -right-6 -bottom-6 opacity-5 group-hover:opacity-20 transition-all duration-700 group-hover:scale-150 group-hover:-rotate-12">
+             <i class="fas ${a.icon} text-9xl"></i>
+          </div>
+          <div class="flex flex-col items-center text-center space-y-5 relative z-10">
+            <div class="${a.bg} ${a.color} w-20 h-20 rounded-[2rem] flex items-center justify-center text-3xl shadow-inner group-hover:scale-110 transition-all duration-500 group-hover:rotate-6">
               <i class="fas ${a.icon} ${a.icon === 'fa-crown' ? 'animate-bounce' : ''}"></i>
             </div>
-            <div>
-              <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-400">${a.subtitle}</h4>
-              <h3 class="text-md font-black text-slate-900 dark:text-white mt-1">${a.title}</h3>
+            <div class="space-y-1">
+              <h4 class="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">${a.subtitle}</h4>
+              <h3 class="text-md font-black text-slate-900 dark:text-white">${a.title}</h3>
             </div>
-            <div class="py-3 border-y border-slate-100 dark:border-slate-800/60 w-full">
-              <p class="text-lg font-black bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent truncate px-2">${a.winner}</p>
-              <p class="text-xs font-mono font-bold text-slate-400 mt-1">${a.value}</p>
+            <div class="py-4 border-y border-slate-100 dark:border-slate-800/60 w-full relative overflow-hidden group/winner">
+              <div class="absolute inset-0 bg-gradient-to-r from-pink-500/0 via-pink-500/5 to-pink-500/0 -translate-x-full group-hover/winner:animate-shimmer"></div>
+              <p class="text-lg font-black bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent truncate px-1">${a.winner}</p>
+              <p class="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 mt-1">${a.value}</p>
             </div>
-            <p class="text-[10px] font-medium text-slate-500 italic leading-relaxed">"${a.desc}"</p>
+            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 italic leading-relaxed px-2">"${a.desc}"</p>
           </div>
         </div>`;
     });
 
-    container.innerHTML = html + '</div>';
+    container.innerHTML = html + '</div><div id="leaderboard-detailed-target" class="mt-16 border-t border-slate-100 dark:border-slate-800 pt-16"></div>';
+    App.state.leaderboardAwards = awards; // Cache for tab switching
+    App.renderLeaderboardDetailedStandings();
+  },
+
+  renderLeaderboardDetailedStandings: function() {
+    const awards = App.state.leaderboardAwards;
+    const detailTarget = document.getElementById('leaderboard-detailed-target');
+    if (!detailTarget) return;
+
+    let html = `
+      <div class="space-y-8">
+        <div class="flex items-center gap-6 mb-2">
+          <div class="h-[1px] flex-1 bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent"></div>
+          <h4 class="text-[10px] font-black uppercase tracking-[0.5em] text-slate-400 dark:text-slate-500">Detailed Member Standings</h4>
+          <div class="h-[1px] flex-1 bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent"></div>
+        </div>
+
+        <div class="flex flex-wrap justify-center gap-2 mb-8">`;
+
+    awards.forEach((a, idx) => {
+      const isActive = App.state.activeLeaderboardTab === idx;
+      html += `
+        <button onclick="App.switchLeaderboardTab(${idx})" class="flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all duration-500 group/tab ${isActive ? 'bg-white dark:bg-slate-900 border-pink-500 text-pink-500 shadow-lg shadow-pink-500/20 scale-105 z-10' : 'bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-slate-400 hover:border-pink-300 dark:hover:border-pink-800 hover:text-slate-600 dark:hover:text-slate-300'}">
+          <i class="fas ${a.icon} text-xs transition-transform duration-300 ${isActive ? 'scale-110 rotate-12' : 'group-hover/tab:rotate-12'}"></i>
+          <span class="text-[10px] font-black uppercase tracking-widest">${a.title}</span>
+        </button>`;
+    });
+
+    html += `</div>`;
+
+    const a = awards[App.state.activeLeaderboardTab] || awards[0];
+    if (a) {
+      html += `
+        <div class="max-w-3xl mx-auto space-y-6 animate-scale-up">
+          <div class="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-8 rounded-[3rem] shadow-xl relative overflow-hidden">
+            <div class="absolute top-0 right-0 p-8 opacity-5">
+              <i class="fas ${a.icon} text-9xl"></i>
+            </div>
+
+            <div class="flex items-center gap-4 mb-8 relative z-10">
+              <div class="${a.bg} ${a.color} w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-inner">
+                <i class="fas ${a.icon}"></i>
+              </div>
+              <div>
+                <h5 class="text-lg font-black text-slate-900 dark:text-white uppercase tracking-widest">${a.title}</h5>
+                <p class="text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">${a.subtitle}</p>
+              </div>
+            </div>
+
+            <div class="space-y-3 relative z-10">`;
+
+      a.rankData.forEach((entry, idx) => {
+        const val = entry[a.metric];
+        const formattedVal = a.format(val);
+        const isTop3 = idx < 3;
+        const rankColor = idx === 0 ? 'bg-amber-400 shadow-amber-400/30' : (idx === 1 ? 'bg-slate-400 shadow-slate-400/30' : (idx === 2 ? 'bg-orange-500 shadow-orange-500/30' : 'bg-slate-100 dark:bg-slate-800'));
+
+        html += `
+          <div class="flex items-center justify-between p-5 rounded-[2rem] ${idx === 0 ? 'bg-gradient-to-r from-pink-500/10 via-pink-500/[0.03] to-transparent border-2 border-pink-500/20' : 'bg-slate-50/80 dark:bg-slate-950/50 border border-slate-200/50 dark:border-slate-800/50'} shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-lg group/rank">
+            <div class="flex items-center gap-6">
+              <div class="relative">
+                <div class="w-12 h-12 ${rankColor} rounded-2xl flex items-center justify-center text-sm font-black ${isTop3 ? 'text-white' : 'text-slate-400 dark:text-slate-500'} shadow-lg transform ${idx === 0 ? 'scale-110 rotate-3 group-hover/rank:rotate-12' : 'group-hover/rank:-rotate-6'} transition-transform duration-300">
+                  ${idx + 1}
+                </div>
+                ${idx === 0 ? '<div class="absolute -top-2 -right-2 bg-amber-400 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] border-2 border-white dark:border-slate-900 animate-bounce"><i class="fas fa-crown"></i></div>' : ''}
+              </div>
+              <div class="flex flex-col">
+                <span class="text-md font-black text-slate-900 dark:text-white group-hover/rank:text-pink-500 transition-colors">${App.resolveUserDisplayName(entry.email)}</span>
+                <span class="text-[11px] text-slate-400 dark:text-slate-500 font-mono font-bold tracking-tight">${entry.email}</span>
+              </div>
+            </div>
+            <div class="flex flex-col items-end gap-1">
+              <span class="text-md font-mono font-black ${isTop3 ? 'text-pink-500' : 'text-slate-700 dark:text-slate-300'}">${formattedVal}</span>
+              ${idx === 0 ? '<span class="px-2 py-0.5 bg-amber-400/10 text-amber-500 text-[9px] font-black rounded-lg uppercase tracking-widest border border-amber-400/20">Elite Tier</span>' : ''}
+            </div>
+          </div>`;
+      });
+
+      if (a.rankData.length === 0) {
+        html += `<p class="text-center text-xs text-slate-400 italic py-12">Wala pang data for this category. Stay tuned!</p>`;
+      }
+
+      html += `</div></div></div>`;
+    }
+
+    detailTarget.innerHTML = html + '</div>';
+  },
+
+  switchLeaderboardTab: function(idx) {
+    App.state.activeLeaderboardTab = idx;
+    App.renderLeaderboardDetailedStandings();
   },
 
   openModal: function(id) { 
