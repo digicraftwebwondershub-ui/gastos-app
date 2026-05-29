@@ -169,7 +169,7 @@
         <div id="view-settlements" class="view-pane hidden space-y-4">
           <div class="flex justify-between items-center">
             <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5"><i class="fas fa-handshake text-pink-400"></i> Bayaran ng Gastos</h3>
-            <button onclick="App.openModal('settle-modal')" class="bg-gradient-to-r from-teal-400 to-indigo-500 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider shadow-md shadow-indigo-400/10 hover:scale-[1.02] transition">
+            <button onclick="App.openSettleModal()" class="bg-gradient-to-r from-teal-400 to-indigo-500 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider shadow-md shadow-indigo-400/10 hover:scale-[1.02] transition">
               <i class="fas fa-handshake-angle mr-1.5"></i> Record a Payment
             </button>
           </div>
@@ -327,7 +327,7 @@
       <form id="settle-form" onsubmit="App.handleSettlementSubmit(event)" class="space-y-4">
         <div>
           <label class="block text-[10px] font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 mb-1">Aling Gasto Group isesettle?</label>
-          <select id="settle-form-cat" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-pink-400"></select>
+          <select id="settle-form-cat" onchange="App.handleSettleCategoryChange()" class="w-full bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl px-3 py-2 text-slate-900 dark:text-white focus:outline-none focus:border-pink-400"></select>
         </div>
         <div class="grid grid-cols-2 gap-4">
           <div>
