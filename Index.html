@@ -160,11 +160,23 @@
         </div>
 
         <div id="view-expenses" class="view-pane hidden space-y-4">
-          <div class="flex justify-between items-center">
-            <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5"><i class="fas fa-list-check text-teal-400"></i> History ng Gastos</h3>
-            <button onclick="App.openModal('expense-modal')" class="bg-gradient-to-r from-emerald-400 to-teal-500 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider shadow-md shadow-emerald-400/10 hover:scale-[1.02] transition">
-              <i class="fas fa-plus mr-1.5"></i> + Add New Gastos
-            </button>
+          <div class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-2">
+            <div class="flex flex-col">
+              <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5"><i class="fas fa-list-check text-teal-400"></i> History ng Gastos</h3>
+              <p class="text-[10px] text-slate-500 mt-1">Manage and track all group financial logs</p>
+            </div>
+            <div class="flex items-center gap-2 w-full md:w-auto">
+              <div class="relative flex-1 md:w-64">
+                <i class="fas fa-search absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 text-[10px]"></i>
+                <input type="text" id="expense-search" oninput="App.handleExpenseSearch()" placeholder="Search title, payer, or category..." class="w-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl pl-8 pr-3 py-1.5 text-[11px] font-bold text-slate-700 dark:text-slate-300 focus:outline-none focus:border-teal-400 shadow-sm transition">
+              </div>
+              <button onclick="App.exportExpensesToCSV()" class="h-8 px-3 bg-slate-100 dark:bg-slate-900 text-slate-600 dark:text-slate-400 rounded-xl text-[10px] font-black hover:bg-slate-200 dark:hover:bg-slate-800 transition flex items-center gap-1.5 border border-slate-200 dark:border-slate-800">
+                <i class="fas fa-file-csv text-teal-500"></i> Export
+              </button>
+              <button onclick="App.openModal('expense-modal')" class="h-8 px-3 bg-gradient-to-r from-emerald-400 to-teal-500 text-white font-bold rounded-xl text-[10px] uppercase tracking-wider shadow-md shadow-emerald-400/10 hover:scale-[1.02] transition">
+                <i class="fas fa-plus mr-1"></i> Add New
+              </button>
+            </div>
           </div>
           <div class="bg-white dark:bg-slate-900/30 rounded-2xl border border-slate-200 dark:border-slate-900 overflow-hidden shadow-sm dark:shadow-none">
             <table class="w-full text-left border-collapse">
@@ -479,7 +491,12 @@
         <img id="qr-viewer-img" src="" alt="Scan To Pay QR Code" class="max-w-full max-h-full rounded-xl object-contain transition-transform duration-300 group-hover:scale-105">
       </div>
       
-      <p id="qr-viewer-number" class="text-sm font-mono tracking-widest font-black mt-4 text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800/80">0917 123 4567</p>
+      <div class="relative group/copy mt-4">
+        <p id="qr-viewer-number" class="text-sm font-mono tracking-widest font-black text-slate-900 dark:text-slate-100 bg-slate-100 dark:bg-slate-950 p-2.5 rounded-xl border border-slate-200/60 dark:border-slate-800/80">0917 123 4567</p>
+        <button onclick="App.copyToClipboard(document.getElementById('qr-viewer-number').innerText, this)" class="absolute right-2 top-1/2 -translate-y-1/2 h-8 w-8 flex items-center justify-center bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-lg text-indigo-500 hover:text-pink-500 transition shadow-sm opacity-0 group-hover/copy:opacity-100" title="Copy Number">
+          <i class="fas fa-copy text-xs"></i>
+        </button>
+      </div>
       <p class="text-[11px] text-slate-500 dark:text-slate-400 font-medium mt-2 flex items-center justify-center gap-1.5"><i class="fas fa-mobile-screen-button text-pink-400 animate-bounce"></i> Open your e-wallet & scan po to pay! ✨</p>
     </div>
   </div>
