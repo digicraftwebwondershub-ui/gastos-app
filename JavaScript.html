@@ -206,71 +206,65 @@ const App = {
   },
 
   // =========================================================================
-  // ADVANCED UPGRADE: RE-ENGINEERED MULTILATERAL DEBT SIMPLIFICATION MATRIX
+  // CORE UPGRADE: PAIR-BASED BILATERAL NETTING MATRIX
   // =========================================================================
   computeBalanceMatrices: function(expDataset, settleDataset) {
-    const netPositions = {};
-    const myEmail = App.state.user ? App.state.user.email.toLowerCase() : "";
+    const pairMap = {}; // Key: "user1|user2" where user1 < user2 alphabetically
+    const myEmail = App.state.user ? App.state.user.email.toLowerCase().trim() : "";
 
-    // Calculate net positions for all users
+    // Helper to get consistent key
+    const getPairKey = (u1, u2) => [u1, u2].sort().join('|');
+
+    // 1. Process Expenses: payer is creditor, participants are debtors
     expDataset.forEach(exp => {
       const payer = exp.paidBy.toLowerCase().trim();
       exp.breakdown.forEach(p => {
         const debtor = p.email.toLowerCase().trim();
-        if(payer !== debtor) {
-          netPositions[debtor] = (netPositions[debtor] || 0) - p.share;
-          netPositions[payer] = (netPositions[payer] || 0) + p.share;
+        if (payer !== debtor && p.share > 0) {
+          const key = getPairKey(payer, debtor);
+          if (!pairMap[key]) pairMap[key] = 0;
+          // If payer is first in key, balance increases (positive means user1 is creditor)
+          pairMap[key] += (payer < debtor ? p.share : -p.share);
         }
       });
     });
 
-    // Account for logged direct settlements
+    // 2. Process Settlements: fromUser is debtor (paying back), toUser is creditor
     settleDataset.forEach(set => {
-      const debtor = set.fromUser.toLowerCase().trim();
-      const creditor = set.toUser.toLowerCase().trim();
-      netPositions[debtor] = (netPositions[debtor] || 0) + set.amount;
-      netPositions[creditor] = (netPositions[creditor] || 0) - set.amount;
+      const from = set.fromUser.toLowerCase().trim();
+      const to = set.toUser.toLowerCase().trim();
+      if (from !== to && set.amount > 0) {
+        const key = getPairKey(from, to);
+        if (!pairMap[key]) pairMap[key] = 0;
+        // If 'to' (creditor) is first in key, balance increases
+        pairMap[key] += (to < from ? -set.amount : set.amount);
+      }
     });
 
-    // Separate debtors and creditors to simplify debt multilaterally
-    const debtors = [];
-    const creditors = [];
-
-    Object.keys(netPositions).forEach(user => {
-      const bal = netPositions[user];
-      if (bal < -0.01) debtors.push({ email: user, amount: Math.abs(bal) });
-      else if (bal > 0.01) creditors.push({ email: user, amount: bal });
-    });
-
-    const optimizedDebtRelations = [];
+    const relations = [];
     let myCalculatedDebt = 0;
     let myCalculatedReceivables = 0;
 
-    let dIdx = 0, cIdx = 0;
-    while (dIdx < debtors.length && cIdx < creditors.length) {
-      const debtor = debtors[dIdx];
-      const creditor = creditors[cIdx];
-      
-      const settlementAmount = Math.min(debtor.amount, creditor.amount);
-      
-      if (settlementAmount > 0.01) {
-        optimizedDebtRelations.push({ from: debtor.email, to: creditor.email, amount: settlementAmount });
-        
-        if (debtor.email === myEmail) myCalculatedDebt += settlementAmount;
-        if (creditor.email === myEmail) myCalculatedReceivables += settlementAmount;
+    Object.keys(pairMap).forEach(key => {
+      const [u1, u2] = key.split('|');
+      const balance = pairMap[key];
+
+      if (Math.abs(balance) > 0.01) {
+        const from = balance > 0 ? u2 : u1;
+        const to = balance > 0 ? u1 : u2;
+        const amount = Math.abs(balance);
+
+        relations.push({ from, to, amount });
+
+        if (from === myEmail) myCalculatedDebt += amount;
+        if (to === myEmail) myCalculatedReceivables += amount;
       }
-
-      debtor.amount -= settlementAmount;
-      creditor.amount -= settlementAmount;
-
-      if (debtor.amount <= 0.01) dIdx++;
-      if (creditor.amount <= 0.01) cIdx++;
-    }
+    });
 
     return {
-      simplifiedDebts: optimizedDebtRelations,
-      myDebtList: optimizedDebtRelations.filter(d => d.from === myEmail),
-      myReceivablesList: optimizedDebtRelations.filter(d => d.to === myEmail),
+      simplifiedDebts: relations,
+      myDebtList: relations.filter(d => d.from === myEmail),
+      myReceivablesList: relations.filter(d => d.to === myEmail),
       totalDebt: myCalculatedDebt,
       totalReceivables: myCalculatedReceivables
     };
@@ -487,7 +481,7 @@ const App = {
     App.openModal('breakdown-modal');
   },
 
-  showSettlementBreakdown: function(fromEmail, toEmail, totalOptimized) {
+  showSettlementBreakdown: function(fromEmail, toEmail, currentBalance) {
     const from = fromEmail.toLowerCase().trim();
     const to = toEmail.toLowerCase().trim();
 
@@ -497,58 +491,48 @@ const App = {
 
     if(!summaryEl || !listEl || !totalEl) return;
 
-    summaryEl.innerHTML = `Breakdown of unpaid items for <b>${App.resolveUserDisplayName(from)}</b>. To simplify group payments, the total is consolidated and owed to <b>${App.resolveUserDisplayName(to)}</b>.`;
+    summaryEl.innerHTML = `Detailed breakdown of items between <b>${App.resolveUserDisplayName(from)}</b> and <b>${App.resolveUserDisplayName(to)}</b>.`;
 
-    let directHtml = '<div class="space-y-2 mt-4"><p class="text-[10px] font-black uppercase text-indigo-500 px-1">Direct Owed to ' + App.resolveUserDisplayName(to) + '</p>';
-    let redirectedHtml = '<div class="space-y-2 mt-6 border-t border-slate-100 dark:border-slate-800 pt-4"><p class="text-[10px] font-black uppercase text-amber-500 px-1">Optimization: Indirect items consolidated to ' + App.resolveUserDisplayName(to) + '</p>';
+    let html = '<div class="space-y-2 mt-4">';
+    let counter = 0;
 
-    let directCount = 0;
-    let indirectCount = 0;
-
-    // Scan all expenses where 'from' has an unpaid share
+    // Scan all expenses where either one is the payer and the other is a debtor
     App.state.expenses.forEach(exp => {
-      const shareObj = exp.breakdown.find(p => p.email.toLowerCase().trim() === from);
-      if (shareObj && shareObj.share > 0.01 && shareObj.status === "Unpaid") {
-        const payer = exp.paidBy.toLowerCase().trim();
-        const isOwedToTarget = payer === to;
+      const payer = exp.paidBy.toLowerCase().trim();
+      const shareObj = exp.breakdown.find(p => p.email.toLowerCase().trim() === (payer === from ? to : from));
 
-        const itemHtml = `
-          <div class="bg-slate-50 dark:bg-slate-950/40 p-3 rounded-2xl border ${isOwedToTarget ? 'border-indigo-500/40' : 'border-slate-200 dark:border-slate-800'} flex justify-between items-center transition hover:border-indigo-400">
+      if (shareObj && shareObj.share > 0.01 && shareObj.status === "Unpaid") {
+        const isFromOwedToTo = payer === to;
+
+        html += `
+          <div class="bg-slate-50 dark:bg-slate-950/40 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 flex justify-between items-center transition hover:border-indigo-400">
             <div class="pr-2 overflow-hidden">
               <p class="text-xs font-black text-slate-900 dark:text-white line-clamp-1">${exp.title}</p>
               <div class="flex items-center gap-2 mt-0.5">
                 <span class="text-[9px] font-mono text-slate-400 uppercase">${exp.date}</span>
-                ${!isOwedToTarget ? `<span class="text-[9px] font-bold text-amber-500 bg-amber-500/5 px-1 rounded border border-amber-500/10">Originally Paid by: ${App.resolveUserDisplayName(payer)}</span>` : ''}
+                <span class="text-[9px] font-bold text-indigo-500 bg-indigo-500/5 px-1 rounded border border-indigo-500/10">Owed to: ${App.resolveUserDisplayName(payer)}</span>
               </div>
             </div>
-            <span class="text-xs font-mono font-black text-rose-500">₱${shareObj.share.toFixed(2)}</span>
+            <div class="text-right">
+              <span class="text-xs font-mono font-black ${isFromOwedToTo ? 'text-rose-500' : 'text-emerald-500'}">${isFromOwedToTo ? '-' : '+'}₱${shareObj.share.toFixed(2)}</span>
+            </div>
           </div>`;
-
-        if (isOwedToTarget) {
-          directHtml += itemHtml; directCount++;
-        } else {
-          redirectedHtml += itemHtml; indirectCount++;
-        }
+        counter++;
       }
     });
 
-    directHtml += directCount === 0 ? '<p class="text-[10px] text-slate-400 italic px-1">No direct items.</p>' : '';
-    directHtml += '</div>';
+    html += '</div>';
 
-    redirectedHtml += indirectCount === 0 ? '<p class="text-[10px] text-slate-400 italic px-1">No indirect items.</p>' : '';
-    redirectedHtml += '</div>';
-
-    // Add explanation for optimization logic
-    const optimizationInfo = `
-      <div class="bg-indigo-500/5 dark:bg-indigo-500/10 p-4 rounded-2xl border border-dashed border-indigo-500/30 mt-6 space-y-2">
-        <p class="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1.5"><i class="fas fa-shuffle"></i> Why consolidate?</p>
-        <p class="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed italic">
-          If <b>A</b> owes <b>B</b>, and <b>B</b> owes <b>C</b>, FinTrack simplifies it so <b>A</b> pays <b>C</b> directly. This reduces the total number of transfers needed for everyone.
+    // Add explanation for bilateral netting
+    html += `
+      <div class="bg-slate-500/5 dark:bg-slate-500/10 p-4 rounded-2xl border border-dashed border-slate-300 dark:border-slate-800 mt-6">
+        <p class="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed italic text-pretty">
+          The total balance below is the result of adding up all unpaid shares between you two (netting any amounts you might owe each other).
         </p>
       </div>`;
 
-    listEl.innerHTML = directHtml + redirectedHtml + optimizationInfo;
-    totalEl.innerText = `₱${totalOptimized.toFixed(2)}`;
+    listEl.innerHTML = counter > 0 ? html : `<p class="text-center text-slate-400 py-12 italic">No unpaid shared items found between these two members.</p>`;
+    totalEl.innerText = `₱${currentBalance.toFixed(2)}`;
 
     App.openModal('debt-breakdown-modal');
   },
