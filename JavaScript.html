@@ -206,75 +206,71 @@ const App = {
   },
 
   // =========================================================================
-  // ADVANCED UPGRADE: BILATERAL NETTING DEBT MATRIX (Non-Optimized Direct)
+  // ADVANCED UPGRADE: RE-ENGINEERED MULTILATERAL DEBT SIMPLIFICATION MATRIX
   // =========================================================================
   computeBalanceMatrices: function(expDataset, settleDataset) {
-    const pairMatrix = {}; // { "user1|user2": balance } where positive means user1 owes user2 (sorted keys)
+    const netPositions = {};
     const myEmail = App.state.user ? App.state.user.email.toLowerCase() : "";
 
-    // Calculate pair-wise balances from all expenses
+    // Calculate net positions for all users
     expDataset.forEach(exp => {
       const payer = exp.paidBy.toLowerCase().trim();
       exp.breakdown.forEach(p => {
         const debtor = p.email.toLowerCase().trim();
-        if (payer !== debtor && p.share > 0) {
-          const pairKey = [debtor, payer].sort().join('|');
-          if (!pairMatrix[pairKey]) pairMatrix[pairKey] = 0;
-
-          const [u1, u2] = pairKey.split('|');
-          if (debtor === u1) {
-            pairMatrix[pairKey] += p.share;
-          } else {
-            pairMatrix[pairKey] -= p.share;
-          }
+        if(payer !== debtor) {
+          netPositions[debtor] = (netPositions[debtor] || 0) - p.share;
+          netPositions[payer] = (netPositions[payer] || 0) + p.share;
         }
       });
     });
 
-    // Subtract direct settlements from the pair-wise balance
+    // Account for logged direct settlements
     settleDataset.forEach(set => {
       const debtor = set.fromUser.toLowerCase().trim();
       const creditor = set.toUser.toLowerCase().trim();
-      if (debtor !== creditor && set.amount > 0) {
-        const pairKey = [debtor, creditor].sort().join('|');
-        if (!pairMatrix[pairKey]) pairMatrix[pairKey] = 0;
-
-        const [u1, u2] = pairKey.split('|');
-        if (debtor === u1) {
-          pairMatrix[pairKey] -= set.amount;
-        } else {
-          pairMatrix[pairKey] += set.amount;
-        }
-      }
+      netPositions[debtor] = (netPositions[debtor] || 0) + set.amount;
+      netPositions[creditor] = (netPositions[creditor] || 0) - set.amount;
     });
 
-    const directDebtRelations = [];
+    // Separate debtors and creditors to simplify debt multilaterally
+    const debtors = [];
+    const creditors = [];
+
+    Object.keys(netPositions).forEach(user => {
+      const bal = netPositions[user];
+      if (bal < -0.01) debtors.push({ email: user, amount: Math.abs(bal) });
+      else if (bal > 0.01) creditors.push({ email: user, amount: bal });
+    });
+
+    const optimizedDebtRelations = [];
     let myCalculatedDebt = 0;
     let myCalculatedReceivables = 0;
 
-    Object.keys(pairMatrix).forEach(pairKey => {
-      const bal = pairMatrix[pairKey];
-      const [u1, u2] = pairKey.split('|');
+    let dIdx = 0, cIdx = 0;
+    while (dIdx < debtors.length && cIdx < creditors.length) {
+      const debtor = debtors[dIdx];
+      const creditor = creditors[cIdx];
       
-      if (Math.abs(bal) > 0.01) {
-        let from, to, amount;
-        if (bal > 0) {
-          from = u1; to = u2; amount = bal;
-        } else {
-          from = u2; to = u1; amount = Math.abs(bal);
-        }
+      const settlementAmount = Math.min(debtor.amount, creditor.amount);
 
-        directDebtRelations.push({ from, to, amount });
+      if (settlementAmount > 0.01) {
+        optimizedDebtRelations.push({ from: debtor.email, to: creditor.email, amount: settlementAmount });
         
-        if (from === myEmail) myCalculatedDebt += amount;
-        if (to === myEmail) myCalculatedReceivables += amount;
+        if (debtor.email === myEmail) myCalculatedDebt += settlementAmount;
+        if (creditor.email === myEmail) myCalculatedReceivables += settlementAmount;
       }
-    });
+
+      debtor.amount -= settlementAmount;
+      creditor.amount -= settlementAmount;
+
+      if (debtor.amount <= 0.01) dIdx++;
+      if (creditor.amount <= 0.01) cIdx++;
+    }
 
     return {
-      simplifiedDebts: directDebtRelations, // Maintained naming for template compatibility
-      myDebtList: directDebtRelations.filter(d => d.from === myEmail),
-      myReceivablesList: directDebtRelations.filter(d => d.to === myEmail),
+      simplifiedDebts: optimizedDebtRelations,
+      myDebtList: optimizedDebtRelations.filter(d => d.from === myEmail),
+      myReceivablesList: optimizedDebtRelations.filter(d => d.to === myEmail),
       totalDebt: myCalculatedDebt,
       totalReceivables: myCalculatedReceivables
     };
@@ -491,7 +487,7 @@ const App = {
     App.openModal('breakdown-modal');
   },
 
-  showSettlementBreakdown: function(fromEmail, toEmail, netBalance) {
+  showSettlementBreakdown: function(fromEmail, toEmail, totalOptimized) {
     const from = fromEmail.toLowerCase().trim();
     const to = toEmail.toLowerCase().trim();
     
@@ -501,50 +497,58 @@ const App = {
     
     if(!summaryEl || !listEl || !totalEl) return;
     
-    summaryEl.innerHTML = `This breakdown shows direct unpaid expenses between <b>${App.resolveUserDisplayName(from)}</b> and <b>${App.resolveUserDisplayName(to)}</b>, factoring in bilateral netting.`;
+    summaryEl.innerHTML = `This breakdown shows unpaid expenses for <b>${App.resolveUserDisplayName(from)}</b> and explains why the net payment is to <b>${App.resolveUserDisplayName(to)}</b>.`;
     
-    let html = '';
+    let directDebtsHtml = '<div class="space-y-2"><p class="text-[10px] font-black uppercase text-rose-500 tracking-widest mb-1">Items you directly owe to others:</p>';
+    let optimizedHtml = '';
+    let totalDirectOwed = 0;
     
-    // Scan all expenses involving these two people
+    const directCreditorsMap = {};
+
+    // Scan all expenses where 'from' has an unpaid share
     App.state.expenses.forEach(exp => {
-      const payer = exp.paidBy.toLowerCase().trim();
-      if (payer !== from && payer !== to) return; // Only care if one of them paid
-
-      const otherUser = payer === from ? to : from;
-      const shareObj = exp.breakdown.find(p => p.email.toLowerCase().trim() === otherUser);
-
+      const shareObj = exp.breakdown.find(p => p.email.toLowerCase().trim() === from);
       if (shareObj && shareObj.share > 0.01 && shareObj.status === "Unpaid") {
-        const isOwedByTarget = payer === to; // Does 'from' owe this to 'to'?
+        const payer = exp.paidBy.toLowerCase().trim();
+        totalDirectOwed += shareObj.share;
 
-        html += `
-          <div class="bg-slate-50 dark:bg-slate-950/40 p-3 rounded-2xl border ${isOwedByTarget ? 'border-rose-500/40' : 'border-teal-500/40'} flex justify-between items-center transition">
+        if(!directCreditorsMap[payer]) directCreditorsMap[payer] = 0;
+        directCreditorsMap[payer] += shareObj.share;
+
+        directDebtsHtml += `
+          <div class="bg-slate-50 dark:bg-slate-950/40 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 flex justify-between items-center transition hover:border-indigo-400">
             <div class="pr-2 overflow-hidden">
               <p class="text-xs font-black text-slate-900 dark:text-white line-clamp-1">${exp.title}</p>
               <div class="flex items-center gap-2 mt-0.5">
                 <span class="text-[9px] font-mono text-slate-400 uppercase">${exp.date}</span>
-                <span class="text-[9px] font-bold ${isOwedByTarget ? 'text-rose-500' : 'text-teal-500'} bg-slate-100 dark:bg-slate-900 px-1 rounded-md border border-slate-200 dark:border-slate-800">
-                  Utang ni ${App.resolveUserDisplayName(otherUser)} kay ${App.resolveUserDisplayName(payer)}
-                </span>
+                <span class="text-[9px] font-bold text-amber-500 bg-slate-100 dark:bg-slate-900 px-1 rounded-md border border-slate-200 dark:border-slate-800">Owed to: ${App.resolveUserDisplayName(payer)}</span>
               </div>
             </div>
-            <span class="text-xs font-mono font-black ${isOwedByTarget ? 'text-rose-500' : 'text-teal-500'}">
-              ${isOwedByTarget ? '' : '-' }₱${shareObj.share.toFixed(2)}
-            </span>
+            <span class="text-xs font-mono font-black text-rose-500">₱${shareObj.share.toFixed(2)}</span>
           </div>`;
       }
     });
+    directDebtsHtml += '</div>';
+
+    let summaryText = `<div class="mt-4 p-4 bg-slate-100 dark:bg-slate-900 rounded-2xl text-[11px] space-y-2">
+      <p class="font-bold text-slate-700 dark:text-slate-300">Direct Debt Summary:</p>`;
+    Object.keys(directCreditorsMap).forEach(cred => {
+      summaryText += `<div class="flex justify-between"><span>Owe ${App.resolveUserDisplayName(cred)}:</span><b>₱${directCreditorsMap[cred].toFixed(2)}</b></div>`;
+    });
+    summaryText += `<div class="flex justify-between border-t border-slate-200 dark:border-slate-800 pt-1 font-black"><span>Total Group Liabilities:</span><span>₱${totalDirectOwed.toFixed(2)}</span></div></div>`;
     
-    // Add explanation for bilateral netting
-    html += `
+    // Add explanation for optimization delta
+    optimizedHtml += `
       <div class="bg-indigo-500/5 dark:bg-indigo-500/10 p-4 rounded-2xl border border-dashed border-indigo-500/30 mt-4 space-y-2">
-        <p class="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1.5"><i class="fas fa-scale-balanced"></i> Bilateral Netting Explanation</p>
+        <p class="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1.5"><i class="fas fa-wand-magic-sparkles"></i> Optimized Consolidation</p>
         <p class="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed italic">
-          FinTrack calculates the net difference between what you owe <b>${App.resolveUserDisplayName(to)}</b> and what <b>${App.resolveUserDisplayName(to)}</b> owes you. This ensures you only pay the actual remaining balance.
+          Instead of paying multiple people separately (Total: ₱${totalDirectOwed.toFixed(2)}), FinTrack consolidated the debts.
+          By paying <b>₱${totalOptimized.toFixed(2)}</b> to <b>${App.resolveUserDisplayName(to)}</b>, you settle your total share for all group expenses.
         </p>
       </div>`;
     
-    listEl.innerHTML = html || `<p class="text-center text-slate-400 py-6 italic">No direct unpaid items found between these users.</p>`;
-    totalEl.innerText = `₱${netBalance.toFixed(2)}`;
+    listEl.innerHTML = directDebtsHtml + summaryText + optimizedHtml;
+    totalEl.innerText = `₱${totalOptimized.toFixed(2)}`;
     
     App.openModal('debt-breakdown-modal');
   },
@@ -561,8 +565,8 @@ const App = {
         <div class="bg-white dark:bg-rose-950/5 border border-slate-200 dark:border-rose-500/20 p-4 rounded-3xl flex flex-col justify-between space-y-4 shadow-sm dark:shadow-none hover:shadow-md transition">
           <div class="flex justify-between items-start">
             <div>
-              <p class="text-[9px] font-mono text-rose-500 uppercase tracking-widest font-bold flex items-center gap-1"><i class="fas fa-circle-exclamation"></i> Unpaid Liability</p>
-              <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">You owe <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(d.to)}</b></h4>
+              <p class="text-[9px] font-mono text-rose-500 uppercase tracking-widest font-bold flex items-center gap-1"><i class="fas fa-circle-exclamation"></i> Net Group Settlement</p>
+              <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">Settle all group debts via <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(d.to)}</b></h4>
             </div>
             <button onclick="App.showSettlementBreakdown('${myEmail}', '${d.to}', ${d.amount})" class="text-[10px] text-slate-400 hover:text-indigo-500 transition font-bold"><i class="fas fa-list-ul"></i> View Details</button>
           </div>
@@ -581,8 +585,8 @@ const App = {
         <div class="bg-white dark:bg-teal-950/5 border border-slate-200 dark:border-teal-500/20 p-4 rounded-3xl flex flex-col justify-between space-y-4 shadow-sm dark:shadow-none hover:shadow-md transition">
           <div class="flex justify-between items-start">
             <div>
-              <p class="text-[9px] font-mono text-teal-500 tracking-widest font-bold flex items-center gap-1"><i class="fas fa-bell-ring animate-bounce text-xs"></i> Awaiting Collection</p>
-              <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">Dapat kang bayaran ni <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(r.from)}</b></h4>
+              <p class="text-[9px] font-mono text-teal-500 tracking-widest font-bold flex items-center gap-1"><i class="fas fa-bell-ring animate-bounce text-xs"></i> Optimized Collection</p>
+              <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">Collect group shares via <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(r.from)}</b></h4>
             </div>
             <button onclick="App.showSettlementBreakdown('${r.from}', '${myEmail}', ${r.amount})" class="text-[10px] text-slate-400 hover:text-indigo-500 transition font-bold"><i class="fas fa-list-ul"></i> View Details</button>
           </div>
