@@ -331,47 +331,129 @@ const App = {
     if(!grid) return;
     let html = '';
     const isAdmin = App.state.user && App.state.user.role === 'Admin';
+    const myEmail = App.state.user ? App.state.user.email.toLowerCase().trim() : "";
+
+    let totalCollaborators = new Set();
+    let totalVelocitySum = 0;
     
     App.state.categories.forEach(cat => {
+      cat.members.forEach(m => totalCollaborators.add(m.toLowerCase().trim()));
+      
+      const catExpenses = App.state.expenses.filter(e => e.catId === cat.id);
+      const catTotalSpend = catExpenses.reduce((sum, e) => sum + e.amount, 0);
+      
+      // Calculate group balance for the current user
+      let myBalance = 0;
+      catExpenses.forEach(exp => {
+        const isPayer = exp.paidBy.toLowerCase().trim() === myEmail;
+        const myShareObj = exp.breakdown.find(p => p.email.toLowerCase().trim() === myEmail);
+        const myShare = myShareObj ? myShareObj.share : 0;
+        
+        if (isPayer) myBalance += (exp.amount - myShare);
+        else myBalance -= myShare;
+      });
+
+      // Dummy budget for velocity visualization (assuming 50k as default cap if none)
+      const mockBudget = 50000;
+      const velocity = Math.min(Math.round((catTotalSpend / mockBudget) * 100), 100);
+      totalVelocitySum += velocity;
+
       let actionsHtml = '';
       if (isAdmin) {
         actionsHtml = `
-          <div class="flex gap-2">
-            <button onclick="App.editCategory('${cat.id}')" class="text-[10px] bg-blue-500 text-white rounded-lg px-2 py-1 font-bold hover:bg-blue-400 transition"><i class="fas fa-edit"></i></button>
-            <button onclick="App.deleteCategory('${cat.id}')" class="text-[10px] bg-red-500 text-white rounded-lg px-2 py-1 font-bold hover:bg-red-400 transition"><i class="fas fa-trash"></i></button>
+          <div class="flex gap-1.5">
+            <button onclick="App.editCategory('${cat.id}')" class="h-7 w-7 flex items-center justify-center bg-blue-500/10 text-blue-500 rounded-lg font-bold hover:bg-blue-500 hover:text-white transition shadow-sm"><i class="fas fa-pen-to-square text-[10px]"></i></button>
+            <button onclick="App.deleteCategory('${cat.id}')" class="h-7 w-7 flex items-center justify-center bg-rose-500/10 text-rose-500 rounded-lg font-bold hover:bg-rose-500 hover:text-white transition shadow-sm"><i class="fas fa-trash-can text-[10px]"></i></button>
           </div>
         `;
       }
 
       const typeConfig = {
-        'Travel': { icon: 'fas fa-plane-departure text-blue-400', label: 'Gala Era' },
-        'Food': { icon: 'fas fa-utensils text-orange-400', label: 'Foodie Adventure' },
-        'Staycation': { icon: 'fas fa-hotel text-indigo-400', label: 'Chill & Relax Mode' },
-        'Family': { icon: 'fas fa-house-chimney text-emerald-400', label: 'Fam Bam' },
-        'Work': { icon: 'fas fa-laptop-code text-slate-500', label: 'Work Grind' },
-        'Friends': { icon: 'fas fa-people-group text-pink-400', label: 'Barkada Goals' }
+        'Travel': { icon: 'fas fa-plane-departure', label: 'Gala Era', color: 'from-blue-400 to-indigo-500' },
+        'Food': { icon: 'fas fa-utensils', label: 'Foodie Adventure', color: 'from-orange-400 to-rose-500' },
+        'Staycation': { icon: 'fas fa-hotel', label: 'Chill & Relax Mode', color: 'from-indigo-400 to-purple-600' },
+        'Family': { icon: 'fas fa-house-chimney', label: 'Fam Bam', color: 'from-emerald-400 to-teal-600' },
+        'Work': { icon: 'fas fa-laptop-code', label: 'Work Grind', color: 'from-slate-500 to-slate-700' },
+        'Friends': { icon: 'fas fa-people-group', label: 'Barkada Goals', color: 'from-pink-400 to-purple-500' }
       };
-      const config = typeConfig[cat.type] || { icon: 'fas fa-layer-group text-purple-400', label: cat.type };
+      const config = typeConfig[cat.type] || { icon: 'fas fa-layer-group', label: cat.type, color: 'from-slate-400 to-slate-600' };
+
+      // Avatar stack generation
+      let avatarsHtml = '';
+      cat.members.slice(0, 4).forEach((m, i) => {
+        const name = App.resolveUserDisplayName(m);
+        const initials = name.substring(0, 2).toUpperCase();
+        avatarsHtml += `<div class="h-6 w-6 rounded-full border-2 border-white dark:border-slate-900 bg-slate-200 dark:bg-slate-800 flex items-center justify-center text-[8px] font-black text-slate-500 -ml-1.5 first:ml-0" title="${name}">${initials}</div>`;
+      });
+      if (cat.members.length > 4) {
+        avatarsHtml += `<div class="h-6 w-6 rounded-full border-2 border-white dark:border-slate-900 bg-pink-500 flex items-center justify-center text-[8px] font-black text-white -ml-1.5">+${cat.members.length - 4}</div>`;
+      }
+
+      const balanceColor = myBalance > 0 ? 'text-teal-500' : (myBalance < 0 ? 'text-rose-500' : 'text-slate-400');
+      const balanceLabel = myBalance > 0 ? 'Collecting' : (myBalance < 0 ? 'To Pay' : 'Settled');
 
       html += `
-        <div class="bg-white dark:bg-slate-900/30 p-5 rounded-3xl border border-slate-200 dark:border-slate-900 flex flex-col justify-between space-y-4 shadow-sm dark:shadow-none hover:shadow-md transition duration-200">
-          <div>
-            <div class="flex items-center justify-between">
-              <span class="px-2 py-0.5 font-mono text-[9px] bg-pink-500/10 text-pink-600 dark:text-pink-400 rounded-md uppercase border border-pink-500/20 font-bold">${config.label}</span>
-              <div class="flex items-center gap-2">
+        <div class="bg-white dark:bg-slate-900/30 rounded-[2rem] border border-slate-200 dark:border-slate-800 flex flex-col shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 overflow-hidden group">
+          <div class="h-2 w-full bg-gradient-to-r ${config.color}"></div>
+          <div class="p-6 space-y-4">
+            <div class="flex items-start justify-between">
+              <div class="bg-gradient-to-br ${config.color} p-3 rounded-2xl text-white shadow-lg shadow-indigo-500/10 group-hover:rotate-6 transition-transform">
+                <i class="${config.icon} text-lg"></i>
+              </div>
+              <div class="flex flex-col items-end">
+                <span class="px-2 py-0.5 font-black text-[8px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded uppercase tracking-widest border border-slate-200/50 dark:border-slate-700/50 mb-2">${cat.id}</span>
                 ${actionsHtml}
-                <span class="text-[10px] text-slate-400 font-mono">${cat.id}</span>
               </div>
             </div>
-            <h4 class="text-sm font-black text-slate-900 dark:text-white mt-2 flex items-center gap-1.5"><i class="${config.icon}"></i> ${cat.name}</h4>
-            <p class="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">${cat.description || 'No summary notes written.'}</p>
-          </div>
-          <div class="border-t border-slate-100 dark:border-slate-800/60 pt-3 flex items-center justify-between">
-            <span class="text-[10px] font-mono text-slate-400 font-bold"><i class="fas fa-user-group text-purple-400 mr-1"></i>${cat.members.length} Members</span>
-            <button onclick="App.focusCategoryScope('${cat.id}')" class="text-[10px] bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950 rounded-xl px-3 py-1.5 font-black hover:bg-pink-500 dark:hover:bg-pink-400 dark:hover:text-white shadow-sm transition duration-300">Open Group 🚀</button>
+
+            <div>
+              <h4 class="text-md font-black text-slate-900 dark:text-white leading-tight">${App.escapeHtml(cat.name)}</h4>
+              <p class="text-[11px] text-slate-400 dark:text-slate-500 font-medium mt-1 line-clamp-1">${App.escapeHtml(cat.description) || 'No summary notes written.'}</p>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 py-2">
+              <div>
+                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Group MVP</p>
+                <p class="text-xs font-black text-slate-800 dark:text-slate-200">₱${catTotalSpend.toLocaleString('en-US', {minimumFractionDigits:0})}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Personal</p>
+                <p class="text-xs font-black ${balanceColor}">${myBalance === 0 ? '✓' : ''} ₱${Math.abs(myBalance).toFixed(0)} <span class="text-[8px] uppercase opacity-60">${balanceLabel}</span></p>
+              </div>
+            </div>
+
+            <div class="space-y-1.5">
+              <div class="flex justify-between items-center text-[9px] font-black uppercase tracking-tighter">
+                <span class="text-slate-400">Budget Velocity</span>
+                <span class="text-indigo-500">${velocity}%</span>
+              </div>
+              <div class="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                <div class="h-full bg-gradient-to-r ${config.color} rounded-full" style="width: ${velocity}%"></div>
+              </div>
+            </div>
+
+            <div class="pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between">
+              <div class="flex items-center">
+                ${avatarsHtml}
+                <span class="text-[9px] font-bold text-slate-400 ml-2">${cat.members.length} members</span>
+              </div>
+              <button onclick="App.focusCategoryScope('${cat.id}')" class="h-8 px-4 bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950 rounded-xl text-[10px] font-black hover:bg-pink-500 dark:hover:bg-pink-400 dark:hover:text-white transition shadow-md shadow-pink-500/10">Open Group 🚀</button>
+            </div>
           </div>
         </div>`;
     });
+
+    const statCountEl = document.getElementById('cat-stat-count');
+    const statMembersEl = document.getElementById('cat-stat-members');
+    const statVelocityEl = document.getElementById('cat-stat-velocity');
+    
+    if(statCountEl) statCountEl.innerText = App.state.categories.length;
+    if(statMembersEl) statMembersEl.innerText = totalCollaborators.size;
+    if(statVelocityEl) {
+      const avgVelocity = App.state.categories.length > 0 ? Math.round(totalVelocitySum / App.state.categories.length) : 0;
+      statVelocityEl.innerText = avgVelocity + '%';
+    }
+
     grid.innerHTML = html || `<p class="text-slate-400 italic text-xs col-span-3 text-center py-8">Wala pang active groups mapped.</p>`;
   },
 
@@ -1392,6 +1474,13 @@ const App = {
       [action](payload);
   },
 
+  escapeHtml: function(text) {
+    if (!text) return "";
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+  },
+
   editCategory: function(id) {
     const cat = App.state.categories.find(c => c.id === id);
     if (!cat) return;
@@ -1399,7 +1488,7 @@ const App = {
     const modal = document.getElementById('category-modal');
     if (modal) {
       const title = modal.querySelector('h3');
-      if (title) title.innerHTML = `<i class="fas fa-edit text-sm"></i> Edit Gasto Group`;
+      if (title) title.innerHTML = `<i class="fas fa-edit text-sm"></i> Edit ${App.escapeHtml(cat.name)}`;
       const submitBtn = modal.querySelector('button[type="submit"]');
       if (submitBtn) submitBtn.innerText = "Update Group Details";
     }
