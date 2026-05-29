@@ -108,4 +108,31 @@
   .animate-bounce-slow {
     animation: bounceSlow 2s infinite;
   }
+
+  /* Redesigned Leaderboard Modern Styles */
+  .leaderboard-gradient-blue {
+    background: linear-gradient(135deg, #1e40af 0%, #1e3a8a 100%);
+  }
+
+  .leaderboard-card-glow {
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.15);
+  }
+
+  .rank-pill {
+    background: rgba(255, 255, 255, 0.1);
+    backdrop-filter: blur(4px);
+  }
+
+  .leaderboard-item-hover {
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .leaderboard-item-hover:hover {
+    background: rgba(59, 130, 246, 0.05);
+    transform: translateX(4px);
+  }
+
+  .dark .leaderboard-item-hover:hover {
+    background: rgba(59, 130, 246, 0.1);
+  }
 </style>

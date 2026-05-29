@@ -44,6 +44,14 @@ const App = {
     return match ? match.name : email;
   },
 
+  resolveUserPhoto: function(email) {
+    if(!email) return "";
+    const match = App.state.systemUsers.find(u => u.email.toLowerCase().trim() === email.toLowerCase().trim());
+    if (match && match.photo) return match.photo;
+    const name = match ? match.name : email;
+    return 'https://api.dicebear.com/7.x/bottts/svg?seed=' + name;
+  },
+
   toggleThemeMode: function() {
     const htmlNode = document.documentElement;
     const textLabel = document.getElementById('theme-toggle-text');
@@ -925,7 +933,6 @@ const App = {
       const debtor = s.fromUser.toLowerCase().trim();
       const creditor = s.toUser.toLowerCase().trim();
       if (userAggMap[debtor]) {
-        // Find matching expenses this settlement might be related to
         const matchingExp = expData.find(e => e.catId === s.catId && e.paidBy.toLowerCase().trim() === creditor);
         if (matchingExp) {
           const d1 = new Date(matchingExp.date);
@@ -936,7 +943,7 @@ const App = {
       }
     });
 
-    // Budget Master Logic: Estimates vs Actuals
+    // Budget Master Logic
     const budgetMasterMap = {};
     App.state.estimatorLogs.forEach(est => {
       const participants = est.participants && est.participants.length > 0 ? est.participants : [];
@@ -967,218 +974,150 @@ const App = {
 
     const awards = [
       {
-        title: "The Salo Master",
-        subtitle: "Abono King/Queen Yarn? 👑",
-        icon: "fa-crown",
-        animation: "animate-bounce-slow",
-        color: "text-amber-500",
-        bg: "bg-amber-500/10",
-        winner: sortedByAbono[0] ? App.resolveUserDisplayName(sortedByAbono[0].email) : "N/A",
-        value: sortedByAbono[0] ? `₱${sortedByAbono[0].totalAbono.toLocaleString('en-US', {minimumFractionDigits:2})}` : "₱0",
-        desc: "Laging handang sumalo para sa barkada. Stay rich po! ✨",
-        rankData: sortedByAbono,
-        metric: 'totalAbono',
-        format: (v) => '₱' + v.toLocaleString('en-US', {minimumFractionDigits:2})
+        title: "The Salo Master", subtitle: "Abono King/Queen Yarn? 👑", icon: "fa-crown", color: "text-amber-500",
+        rankData: sortedByAbono, metric: 'totalAbono', format: (v) => '₱' + v.toLocaleString('en-US', {minimumFractionDigits:2})
       },
       {
-        title: "The Gastador Era",
-        subtitle: "Investment Yarn? 💅",
-        icon: "fa-coins",
-        animation: "animate-bounce-slow",
-        color: "text-pink-500",
-        bg: "bg-pink-500/10",
-        winner: sortedBySpend[0] ? App.resolveUserDisplayName(sortedBySpend[0].email) : "N/A",
-        value: sortedBySpend[0] ? `₱${sortedBySpend[0].grossSpend.toLocaleString('en-US', {minimumFractionDigits:2})}` : "₱0",
-        desc: "Sulit ang bawat sentimo sa mga gala. Deserve mo yan! ✨",
-        rankData: sortedBySpend,
-        metric: 'grossSpend',
-        format: (v) => '₱' + v.toLocaleString('en-US', {minimumFractionDigits:2})
+        title: "The Gastador Era", subtitle: "Investment Yarn? 💅", icon: "fa-coins", color: "text-pink-500",
+        rankData: sortedBySpend, metric: 'grossSpend', format: (v) => '₱' + v.toLocaleString('en-US', {minimumFractionDigits:2})
       },
       {
-        title: "The Swift Payer",
-        subtitle: "Bayad Agad Streak 🔥",
-        icon: "fa-bolt",
-        animation: "animate-bounce-slow",
-        color: "text-blue-500",
-        bg: "bg-blue-500/10",
-        winner: sortedBySpeed[0] ? App.resolveUserDisplayName(sortedBySpeed[0].email) : "N/A",
-        value: sortedBySpeed[0] ? `${(sortedBySpeed[0].timeToPay.reduce((s,x)=>s+x,0)/sortedBySpeed[0].timeToPay.length).toFixed(1)} Days` : "N/A",
-        desc: "Mabilis pa sa alas-kwatro magbayad. Very mindful! ⚡",
-        rankData: sortedBySpeed,
-        metric: 'timeToPay',
-        format: (v) => (v.length > 0 ? (v.reduce((s,x)=>s+x,0)/v.length).toFixed(1) : '0') + ' Days'
+        title: "The Swift Payer", subtitle: "Bayad Agad Streak 🔥", icon: "fa-bolt", color: "text-blue-500",
+        rankData: sortedBySpeed, metric: 'timeToPay', format: (v) => (v.length > 0 ? (v.reduce((s,x)=>s+x,0)/v.length).toFixed(1) : '0') + ' Days'
       },
       {
-        title: "The Ultimate Joiner",
-        subtitle: "Laging Present Yarn? 🦋",
-        icon: "fa-people-group",
-        animation: "animate-bounce-slow",
-        color: "text-teal-500",
-        bg: "bg-teal-500/10",
-        winner: sortedByParticipation[0] ? App.resolveUserDisplayName(sortedByParticipation[0].email) : "N/A",
-        value: sortedByParticipation[0] ? `${sortedByParticipation[0].participationCount} Items` : "0 Items",
-        desc: "Laging present at kasama sa bawat gala. Slay! ✨",
-        rankData: sortedByParticipation,
-        metric: 'participationCount',
-        format: (v) => v + ' Items'
+        title: "The Ultimate Joiner", subtitle: "Laging Present Yarn? 🦋", icon: "fa-people-group", color: "text-teal-500",
+        rankData: sortedByParticipation, metric: 'participationCount', format: (v) => v + ' Items'
       },
       {
-        title: "The Budget Master",
-        subtitle: "Wais sa Gastusan Energy 🛡️",
-        icon: "fa-shield-halved",
-        animation: "animate-bounce-slow",
-        color: "text-emerald-500",
-        bg: "bg-emerald-500/10",
-        winner: sortedBySaving[0] ? App.resolveUserDisplayName(sortedBySaving[0].email) : "N/A",
-        value: sortedBySaving[0] ? `₱${sortedBySaving[0].saving.toLocaleString('en-US', {minimumFractionDigits:2})}` : "₱0",
-        desc: "Under budget lagi! Tipid goals achieved! ✨",
-        rankData: sortedBySaving,
-        metric: 'saving',
-        format: (v) => '₱' + v.toLocaleString('en-US', {minimumFractionDigits:2})
+        title: "The Budget Master", subtitle: "Wais sa Gastusan Energy 🛡️", icon: "fa-shield-halved", color: "text-emerald-500",
+        rankData: sortedBySaving, metric: 'saving', format: (v) => '₱' + v.toLocaleString('en-US', {minimumFractionDigits:2})
       },
       {
-        title: "The Resibo Master",
-        subtitle: "Audit Energy is Real! 📋",
-        icon: "fa-clipboard-check",
-        animation: "animate-bounce-slow",
-        color: "text-purple-500",
-        bg: "bg-purple-500/10",
-        winner: sortedByAuditor[0] ? App.resolveUserDisplayName(sortedByAuditor[0].email) : "N/A",
-        value: sortedByAuditor[0] ? `${sortedByAuditor[0].countRecorded} Entries` : "0 Entries",
-        desc: "Maasahan sa pag-track ng lahat ng gastos. No resibo, no entry! ✨",
-        rankData: sortedByAuditor,
-        metric: 'countRecorded',
-        format: (v) => v + ' Entries'
+        title: "The Resibo Master", subtitle: "Audit Energy is Real! 📋", icon: "fa-clipboard-check", color: "text-purple-500",
+        rankData: sortedByAuditor, metric: 'countRecorded', format: (v) => v + ' Entries'
       }
     ];
 
-    let html = `
-      <div class="text-center mb-10">
-        <div class="inline-block p-4 bg-gradient-to-tr from-amber-400 to-pink-500 rounded-3xl shadow-lg shadow-pink-500/20 mb-4 transform hover:rotate-12 transition-transform duration-500">
-          <i class="fas fa-trophy text-3xl text-white animate-pulse"></i>
+    App.state.leaderboardAwards = awards;
+
+    container.innerHTML = `
+      <div class="flex flex-col space-y-6">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xl font-black text-slate-900 dark:text-white uppercase tracking-wider">Leaderboard</h3>
+          <i class="fas fa-crown text-amber-400 text-xl animate-bounce-slow"></i>
         </div>
-        <h3 class="text-3xl font-black text-slate-900 dark:text-white uppercase tracking-[0.3em] font-mono">Hall of Fame</h3>
-        <p class="text-[10px] text-slate-500 dark:text-slate-400 mt-2 font-black uppercase tracking-[0.2em]">Recognizing the legends of the Ambagan Matrix</p>
+
+        <div id="leaderboard-me-card-target"></div>
+
+        <div class="flex flex-wrap gap-2 py-2 overflow-x-auto no-scrollbar">
+          ${awards.map((a, idx) => `
+            <button onclick="App.switchLeaderboardTab(${idx})" class="flex-none flex items-center gap-2 px-4 py-2 rounded-2xl border transition-all duration-300 ${App.state.activeLeaderboardTab === idx ? 'bg-blue-600 border-blue-600 text-white shadow-lg' : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800 text-slate-500 hover:border-blue-400'}">
+              <i class="fas ${a.icon} text-xs"></i>
+              <span class="text-[10px] font-black uppercase tracking-wider">${a.title}</span>
+            </button>
+          `).join('')}
+        </div>
+
+        <div id="leaderboard-detailed-target" class="space-y-4"></div>
       </div>
-      
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-20">`;
+    `;
 
-    awards.forEach(a => {
-      html += `
-        <div class="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 p-6 rounded-[2.5rem] shadow-sm hover:shadow-2xl transition-all duration-700 group hover:-translate-y-3 relative overflow-hidden">
-          <div class="absolute -right-6 -bottom-6 opacity-5 group-hover:opacity-20 transition-all duration-700 group-hover:scale-150 group-hover:-rotate-12">
-             <i class="fas ${a.icon} text-9xl"></i>
-          </div>
-          <div class="flex flex-col items-center text-center space-y-5 relative z-10">
-            <div class="${a.bg} ${a.color} w-20 h-20 rounded-[2rem] flex items-center justify-center text-3xl shadow-inner">
-              <i class="fas ${a.icon} ${a.animation || ''}"></i>
-            </div>
-            <div class="space-y-1">
-              <h4 class="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">${a.subtitle}</h4>
-              <h3 class="text-md font-black text-slate-900 dark:text-white">${a.title}</h3>
-            </div>
-            <div class="py-4 border-y border-slate-100 dark:border-slate-800/60 w-full relative overflow-hidden group/winner">
-              <div class="absolute inset-0 bg-gradient-to-r from-pink-500/0 via-pink-500/5 to-pink-500/0 -translate-x-full group-hover/winner:animate-shimmer"></div>
-              <p class="text-lg font-black bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent truncate px-1">${a.winner}</p>
-              <p class="text-xs font-mono font-bold text-slate-500 dark:text-slate-400 mt-1">${a.value}</p>
-            </div>
-            <p class="text-[10px] font-bold text-slate-400 dark:text-slate-500 italic leading-relaxed px-2">"${a.desc}"</p>
-          </div>
-        </div>`;
-    });
-
-    container.innerHTML = html + '</div><div id="leaderboard-detailed-target" class="mt-16 border-t border-slate-100 dark:border-slate-800 pt-16"></div>';
-    App.state.leaderboardAwards = awards; // Cache for tab switching
     App.renderLeaderboardDetailedStandings();
   },
 
   renderLeaderboardDetailedStandings: function() {
     const awards = App.state.leaderboardAwards;
     const detailTarget = document.getElementById('leaderboard-detailed-target');
-    if (!detailTarget) return;
-
-    let html = `
-      <div class="space-y-8">
-        <div class="flex items-center gap-6 mb-2">
-          <div class="h-[1px] flex-1 bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent"></div>
-          <h4 class="text-[10px] font-black uppercase tracking-[0.5em] text-slate-400 dark:text-slate-500">Detailed Member Standings</h4>
-          <div class="h-[1px] flex-1 bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent"></div>
-        </div>
-
-        <div class="flex flex-wrap justify-center gap-2 mb-8">`;
-    
-    awards.forEach((a, idx) => {
-      const isActive = App.state.activeLeaderboardTab === idx;
-      html += `
-        <button onclick="App.switchLeaderboardTab(${idx})" class="flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all duration-500 group/tab ${isActive ? 'bg-white dark:bg-slate-900 border-pink-500 text-pink-500 shadow-lg shadow-pink-500/20 scale-105 z-10' : 'bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-slate-400 hover:border-pink-300 dark:hover:border-pink-800 hover:text-slate-600 dark:hover:text-slate-300'}">
-          <i class="fas ${a.icon} text-xs transition-transform duration-300 ${isActive ? 'scale-110 rotate-12' : 'group-hover/tab:rotate-12'}"></i>
-          <span class="text-[10px] font-black uppercase tracking-widest">${a.title}</span>
-        </button>`;
-    });
-
-    html += `</div>`;
+    const meCardTarget = document.getElementById('leaderboard-me-card-target');
+    if (!detailTarget || !meCardTarget) return;
 
     const a = awards[App.state.activeLeaderboardTab] || awards[0];
-    if (a) {
-      html += `
-        <div class="max-w-3xl mx-auto space-y-6 animate-scale-up">
-          <div class="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-8 rounded-[3rem] shadow-xl relative overflow-hidden">
-            <div class="absolute top-0 right-0 p-8 opacity-5">
-              <i class="fas ${a.icon} text-9xl"></i>
-            </div>
-            
-            <div class="flex items-center gap-4 mb-8 relative z-10">
-              <div class="${a.bg} ${a.color} w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-inner">
-                <i class="fas ${a.icon} ${a.animation || ''}"></i>
-              </div>
-              <div>
-                <h5 class="text-lg font-black text-slate-900 dark:text-white uppercase tracking-widest">${a.title}</h5>
-                <p class="text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">${a.subtitle}</p>
-              </div>
-            </div>
+    const myEmail = App.state.user ? App.state.user.email.toLowerCase().trim() : "";
+    
+    // Find my rank and data
+    const myEntryIdx = a.rankData.findIndex(e => e.email === myEmail);
+    const myEntry = a.rankData[myEntryIdx];
+    const myRank = myEntryIdx + 1;
 
-            <div class="space-y-3 relative z-10">`;
-
-      a.rankData.forEach((entry, idx) => {
-        const val = entry[a.metric];
-        const formattedVal = a.format(val);
-        const isTop3 = idx < 3;
-        const rankColor = idx === 0 ? 'bg-amber-400 shadow-amber-400/30' : (idx === 1 ? 'bg-slate-400 shadow-slate-400/30' : (idx === 2 ? 'bg-orange-500 shadow-orange-500/30' : 'bg-slate-100 dark:bg-slate-800'));
-        
-        html += `
-          <div class="flex items-center justify-between p-5 rounded-[2rem] ${idx === 0 ? 'bg-gradient-to-r from-pink-500/10 via-pink-500/[0.03] to-transparent border-2 border-pink-500/20' : 'bg-slate-50/80 dark:bg-slate-950/50 border border-slate-200/50 dark:border-slate-800/50'} shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-lg group/rank">
-            <div class="flex items-center gap-6">
-              <div class="relative">
-                <div class="w-12 h-12 ${rankColor} rounded-2xl flex items-center justify-center text-sm font-black ${isTop3 ? 'text-white' : 'text-slate-400 dark:text-slate-500'} shadow-lg transform ${idx === 0 ? 'scale-110 rotate-3 group-hover/rank:rotate-12' : 'group-hover/rank:-rotate-6'} transition-transform duration-300">
-                  ${idx + 1}
-                </div>
-                ${idx === 0 ? '<div class="absolute -top-2 -right-2 bg-amber-400 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] border-2 border-white dark:border-slate-900 animate-bounce"><i class="fas fa-crown"></i></div>' : ''}
-              </div>
-              <div class="flex flex-col">
-                <span class="text-md font-black text-slate-900 dark:text-white group-hover/rank:text-pink-500 transition-colors">${App.resolveUserDisplayName(entry.email)}</span>
-                <span class="text-[11px] text-slate-400 dark:text-slate-500 font-mono font-bold tracking-tight">${entry.email}</span>
-              </div>
+    // Render "Me" Card
+    if (myEntry) {
+      const myPhoto = App.state.user.photo || 'https://api.dicebear.com/7.x/bottts/svg?seed=' + App.state.user.name;
+      meCardTarget.innerHTML = `
+        <div class="leaderboard-gradient-blue leaderboard-card-glow p-6 rounded-[2.5rem] text-white flex justify-between items-center relative overflow-hidden animate-scale-up">
+          <div class="absolute -right-4 -top-4 opacity-10">
+            <i class="fas ${a.icon} text-8xl rotate-12"></i>
+          </div>
+          <div class="flex items-center gap-4 relative z-10">
+            <img src="${myPhoto}" class="h-14 w-14 rounded-full border-2 border-white/30 bg-white/10 object-cover shadow-lg">
+            <div>
+              <h4 class="text-xs font-bold text-blue-200 uppercase tracking-widest">Your Current Ranking</h4>
+              <p class="text-xl font-black mt-1">Me (${App.state.user.name})</p>
             </div>
-            <div class="flex flex-col items-end gap-1">
-              <span class="text-md font-mono font-black ${isTop3 ? 'text-pink-500' : 'text-slate-700 dark:text-slate-300'}">${formattedVal}</span>
-              ${idx === 0 ? '<span class="px-2 py-0.5 bg-amber-400/10 text-amber-500 text-[9px] font-black rounded-lg uppercase tracking-widest border border-amber-400/20">Elite Tier</span>' : ''}
-            </div>
-          </div>`;
-      });
-
-      if (a.rankData.length === 0) {
-        html += `<p class="text-center text-xs text-slate-400 italic py-12">Wala pang data for this category. Stay tuned!</p>`;
-      }
-
-      html += `</div></div></div>`;
+          </div>
+          <div class="text-right relative z-10">
+            <div class="rank-pill px-4 py-1 rounded-full text-[10px] font-black uppercase tracking-widest inline-block border border-white/10 mb-2">Rank #${myRank}</div>
+            <p class="text-2xl font-black">${a.format(myEntry[a.metric])}</p>
+            <p class="text-[9px] font-bold text-blue-200 uppercase mt-1 tracking-tighter">${a.title} Data</p>
+          </div>
+        </div>
+      `;
+    } else {
+      meCardTarget.innerHTML = '';
     }
 
-    detailTarget.innerHTML = html + '</div>';
+    // Render Standings List
+    let listHtml = '';
+    a.rankData.forEach((entry, idx) => {
+      // Don't skip "me" in the list as requested by modern look
+      const isMe = entry.email === myEmail;
+      const rank = idx + 1;
+      const val = entry[a.metric];
+      const formattedVal = a.format(val);
+
+      const photo = App.resolveUserPhoto(entry.email);
+      const metricLabel = a.title.includes("Swift") ? "Average" : (a.title.includes("Salo") || a.title.includes("Gastador") || a.title.includes("Budget") ? "Total" : "Count");
+
+      listHtml += `
+        <div class="leaderboard-item-hover flex items-center justify-between p-4 bg-white dark:bg-slate-900/40 border border-slate-100 dark:border-slate-800 rounded-3xl ${isMe ? 'ring-2 ring-blue-500/50 bg-blue-50/30 dark:bg-blue-900/10' : ''}">
+          <div class="flex items-center gap-4">
+            <img src="${photo}" class="h-10 w-10 rounded-full bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 object-cover">
+            <div>
+              <p class="text-sm font-black text-slate-900 dark:text-white">${App.resolveUserDisplayName(entry.email)} ${isMe ? '<span class="text-[10px] text-blue-500 ml-1">(Me)</span>' : ''}</p>
+              <p class="text-[10px] font-bold text-slate-400 uppercase tracking-tight">Current Standing</p>
+            </div>
+          </div>
+          <div class="flex items-center gap-6">
+            <div class="text-right">
+              <p class="text-sm font-black text-slate-900 dark:text-white">${formattedVal}</p>
+              <p class="text-[9px] font-bold text-slate-400 uppercase tracking-tighter">${metricLabel}</p>
+            </div>
+            <div class="w-8 text-center text-sm font-black ${rank <= 3 ? 'text-amber-500' : 'text-slate-300'}">
+              ${rank}
+            </div>
+          </div>
+        </div>
+      `;
+    });
+
+    if (a.rankData.length === 0) {
+      listHtml = `<p class="text-center text-xs text-slate-400 italic py-12">Wala pang data for this category. Stay tuned!</p>`;
+    }
+
+    detailTarget.innerHTML = `
+      <div class="mt-4 flex items-center justify-between px-2">
+        <h4 class="text-[10px] font-black uppercase tracking-[0.2em] text-slate-400">Other Participants</h4>
+        <i class="fas fa-ellipsis text-slate-300"></i>
+      </div>
+      <div class="space-y-3 animate-slideUpFade">
+        ${listHtml}
+      </div>
+    `;
   },
 
   switchLeaderboardTab: function(idx) {
     App.state.activeLeaderboardTab = idx;
-    App.renderLeaderboardDetailedStandings();
+    App.renderLeaderboardView(App.getFilteredExpenses());
   },
 
   openModal: function(id) { 
