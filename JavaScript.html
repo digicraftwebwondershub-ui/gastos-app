@@ -331,48 +331,149 @@ const App = {
     if(!grid) return;
     let html = '';
     const isAdmin = App.state.user && App.state.user.role === 'Admin';
+    const myEmail = App.state.user ? App.state.user.email.toLowerCase().trim() : "";
     
+    let totalAllMembers = new Set();
+    let totalAllSpent = 0;
+    let totalAllEstimated = 0;
+
     App.state.categories.forEach(cat => {
+      cat.members.forEach(m => totalAllMembers.add(m.toLowerCase().trim()));
+      const groupExpenses = App.state.expenses.filter(e => e.catId === cat.id);
+      const totalSpent = groupExpenses.reduce((sum, e) => sum + e.amount, 0);
+      const groupEstimates = App.state.estimatorLogs.filter(e => e.catId === cat.id);
+      const totalEstimated = groupEstimates.reduce((sum, e) => sum + e.amount, 0);
+
+      const budgetProgress = totalEstimated > 0 ? Math.min((totalSpent / totalEstimated) * 100, 100) : 0;
+      const budgetColor = budgetProgress > 90 ? 'bg-rose-500' : (budgetProgress > 70 ? 'bg-amber-500' : 'bg-emerald-500');
+
+      // MVP logic
+      const abonoMap = {};
+      groupExpenses.forEach(e => {
+        const p = e.paidBy.toLowerCase().trim();
+        abonoMap[p] = (abonoMap[p] || 0) + e.amount;
+      });
+      let mvpEmail = null;
+      let maxAbono = 0;
+      Object.keys(abonoMap).forEach(email => {
+        if(abonoMap[email] > maxAbono) { maxAbono = abonoMap[email]; mvpEmail = email; }
+      });
+
+      // Personal Balance logic scoped to this group
+      const groupMatrices = App.computeBalanceMatrices(groupExpenses, []);
+      const userDebt = groupMatrices.totalDebt;
+      const userRec = groupMatrices.totalReceivables;
+
+      let balanceBadge = '';
+      if (userDebt > 0.01) {
+        balanceBadge = `<span class="px-2 py-0.5 bg-rose-500/10 text-rose-500 border border-rose-500/20 rounded-lg text-[9px] font-black uppercase tracking-tighter"><i class="fas fa-hand-holding-dollar mr-1"></i>Owe ₱${userDebt.toFixed(0)}</span>`;
+      } else if (userRec > 0.01) {
+        balanceBadge = `<span class="px-2 py-0.5 bg-teal-500/10 text-teal-600 dark:text-teal-400 border border-teal-500/20 rounded-lg text-[9px] font-black uppercase tracking-tighter"><i class="fas fa-piggy-bank mr-1"></i>Collect ₱${userRec.toFixed(0)}</span>`;
+      } else {
+        balanceBadge = `<span class="px-2 py-0.5 bg-slate-500/10 text-slate-500 border border-slate-500/20 rounded-lg text-[9px] font-black uppercase tracking-tighter"><i class="fas fa-check-circle mr-1"></i>Settled</span>`;
+      }
+
+      const typeConfig = {
+        'Travel': { icon: 'fas fa-plane-departure text-blue-400', label: 'Gala Era', grad: 'from-blue-500/5 to-indigo-500/5' },
+        'Food': { icon: 'fas fa-utensils text-orange-400', label: 'Foodie Adventure', grad: 'from-orange-500/5 to-amber-500/5' },
+        'Staycation': { icon: 'fas fa-hotel text-indigo-400', label: 'Chill & Relax Mode', grad: 'from-indigo-500/5 to-purple-500/5' },
+        'Family': { icon: 'fas fa-house-chimney text-emerald-400', label: 'Fam Bam', grad: 'from-emerald-500/5 to-teal-500/5' },
+        'Work': { icon: 'fas fa-laptop-code text-slate-500', label: 'Work Grind', grad: 'from-slate-500/5 to-slate-700/5' },
+        'Friends': { icon: 'fas fa-people-group text-pink-400', label: 'Barkada Goals', grad: 'from-pink-500/5 to-rose-500/5' }
+      };
+      const config = typeConfig[cat.type] || { icon: 'fas fa-layer-group text-purple-400', label: cat.type, grad: 'from-purple-500/5 to-pink-500/5' };
+
+      // Member Avatar logic
+      let avatarHtml = '<div class="flex -space-x-2 overflow-hidden">';
+      cat.members.slice(0, 4).forEach(m => {
+        const u = App.state.systemUsers.find(user => user.email.toLowerCase().trim() === m.toLowerCase().trim());
+        const initial = u ? u.name.substring(0, 1) : m.substring(0, 1);
+        avatarHtml += `<div class="inline-block h-6 w-6 rounded-full ring-2 ring-white dark:ring-slate-900 bg-slate-100 dark:bg-slate-800 flex items-center justify-center text-[10px] font-bold text-slate-600 dark:text-slate-400 uppercase">${initial}</div>`;
+      });
+      if (cat.members.length > 4) {
+        avatarHtml += `<div class="inline-block h-6 w-6 rounded-full ring-2 ring-white dark:ring-slate-900 bg-pink-500 flex items-center justify-center text-[10px] font-bold text-white">+${cat.members.length - 4}</div>`;
+      }
+      avatarHtml += '</div>';
+
       let actionsHtml = '';
       if (isAdmin) {
         actionsHtml = `
-          <div class="flex gap-2">
-            <button onclick="App.editCategory('${cat.id}')" class="text-[10px] bg-blue-500 text-white rounded-lg px-2 py-1 font-bold hover:bg-blue-400 transition"><i class="fas fa-edit"></i></button>
-            <button onclick="App.deleteCategory('${cat.id}')" class="text-[10px] bg-red-500 text-white rounded-lg px-2 py-1 font-bold hover:bg-red-400 transition"><i class="fas fa-trash"></i></button>
+          <div class="flex gap-1">
+            <button onclick="App.editCategory('${cat.id}')" class="text-[9px] bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-blue-500 rounded-lg p-1.5 transition"><i class="fas fa-edit"></i></button>
+            <button onclick="App.deleteCategory('${cat.id}')" class="text-[9px] bg-slate-100 dark:bg-slate-800 text-slate-500 hover:text-rose-500 rounded-lg p-1.5 transition"><i class="fas fa-trash"></i></button>
           </div>
         `;
       }
 
-      const typeConfig = {
-        'Travel': { icon: 'fas fa-plane-departure text-blue-400', label: 'Gala Era' },
-        'Food': { icon: 'fas fa-utensils text-orange-400', label: 'Foodie Adventure' },
-        'Staycation': { icon: 'fas fa-hotel text-indigo-400', label: 'Chill & Relax Mode' },
-        'Family': { icon: 'fas fa-house-chimney text-emerald-400', label: 'Fam Bam' },
-        'Work': { icon: 'fas fa-laptop-code text-slate-500', label: 'Work Grind' },
-        'Friends': { icon: 'fas fa-people-group text-pink-400', label: 'Barkada Goals' }
-      };
-      const config = typeConfig[cat.type] || { icon: 'fas fa-layer-group text-purple-400', label: cat.type };
-
       html += `
-        <div class="bg-white dark:bg-slate-900/30 p-5 rounded-3xl border border-slate-200 dark:border-slate-900 flex flex-col justify-between space-y-4 shadow-sm dark:shadow-none hover:shadow-md transition duration-200">
-          <div>
-            <div class="flex items-center justify-between">
-              <span class="px-2 py-0.5 font-mono text-[9px] bg-pink-500/10 text-pink-600 dark:text-pink-400 rounded-md uppercase border border-pink-500/20 font-bold">${config.label}</span>
+        <div class="group bg-white dark:bg-slate-900/40 p-6 rounded-[2rem] border border-slate-200 dark:border-slate-800/60 flex flex-col justify-between space-y-5 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all duration-300 relative overflow-hidden">
+          <div class="absolute top-0 right-0 w-32 h-32 bg-gradient-to-br ${config.grad} rounded-full -mr-16 -mt-16 transition-transform duration-500 group-hover:scale-150"></div>
+
+          <div class="relative z-10">
+            <div class="flex items-center justify-between mb-3">
+              <span class="px-2 py-0.5 font-mono text-[9px] bg-slate-100 dark:bg-slate-800 text-slate-500 dark:text-slate-400 rounded-md uppercase border border-slate-200 dark:border-slate-700 font-bold">${config.label}</span>
               <div class="flex items-center gap-2">
                 ${actionsHtml}
-                <span class="text-[10px] text-slate-400 font-mono">${cat.id}</span>
+                <span class="text-[9px] text-slate-400 font-mono font-bold">${cat.id}</span>
               </div>
             </div>
-            <h4 class="text-sm font-black text-slate-900 dark:text-white mt-2 flex items-center gap-1.5"><i class="${config.icon}"></i> ${cat.name}</h4>
-            <p class="text-xs text-slate-500 dark:text-slate-400 line-clamp-2 mt-1">${cat.description || 'No summary notes written.'}</p>
+
+            <div class="flex items-start justify-between gap-2">
+              <div>
+                <h4 class="text-md font-black text-slate-900 dark:text-white flex items-center gap-2 truncate max-w-[180px]"><i class="${config.icon}"></i> ${cat.name}</h4>
+                <p class="text-[11px] text-slate-500 dark:text-slate-400 line-clamp-1 mt-1 font-medium">${cat.description || 'No summary notes written.'}</p>
+              </div>
+              ${mvpEmail ? `
+                <div class="flex flex-col items-center group/mvp">
+                  <div class="w-8 h-8 rounded-full bg-amber-400 flex items-center justify-center text-white text-xs shadow-lg shadow-amber-400/20 animate-bounce-slow">
+                    <i class="fas fa-crown"></i>
+                  </div>
+                  <span class="hidden group-hover/mvp:block absolute -top-8 right-0 bg-slate-900 text-white text-[9px] px-2 py-1 rounded whitespace-nowrap z-20">Group MVP: ${App.resolveUserDisplayName(mvpEmail)}</span>
+                </div>
+              ` : ''}
+            </div>
           </div>
-          <div class="border-t border-slate-100 dark:border-slate-800/60 pt-3 flex items-center justify-between">
-            <span class="text-[10px] font-mono text-slate-400 font-bold"><i class="fas fa-user-group text-purple-400 mr-1"></i>${cat.members.length} Members</span>
-            <button onclick="App.focusCategoryScope('${cat.id}')" class="text-[10px] bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950 rounded-xl px-3 py-1.5 font-black hover:bg-pink-500 dark:hover:bg-pink-400 dark:hover:text-white shadow-sm transition duration-300">Open Group 🚀</button>
+
+          <div class="space-y-3 relative z-10">
+            <div class="flex items-end justify-between">
+              <div>
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Total Spent</p>
+                <p class="text-sm font-black text-slate-900 dark:text-white font-mono">₱${totalSpent.toLocaleString('en-US', {minimumFractionDigits:2})}</p>
+              </div>
+              <div class="text-right">
+                <p class="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">Budget Est.</p>
+                <p class="text-[11px] font-bold text-slate-500 dark:text-slate-400 font-mono">₱${totalEstimated.toLocaleString('en-US', {minimumFractionDigits:2})}</p>
+              </div>
+            </div>
+
+            ${totalEstimated > 0 ? `
+              <div class="space-y-1">
+                <div class="flex justify-between text-[9px] font-black uppercase tracking-widest text-slate-400">
+                  <span>Progress</span>
+                  <span>${budgetProgress.toFixed(0)}%</span>
+                </div>
+                <div class="w-full h-1.5 bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
+                  <div class="h-full ${budgetColor} transition-all duration-1000" style="width: ${budgetProgress}%"></div>
+                </div>
+              </div>
+            ` : ''}
+          </div>
+
+          <div class="border-t border-slate-100 dark:border-slate-800/60 pt-4 flex items-center justify-between relative z-10">
+            <div class="flex flex-col gap-2">
+              ${avatarHtml}
+              ${balanceBadge}
+            </div>
+            <button onclick="App.focusCategoryScope('${cat.id}')" class="text-[10px] bg-slate-900 text-white dark:bg-slate-100 dark:text-slate-950 rounded-xl px-4 py-2 font-black hover:bg-pink-500 dark:hover:bg-pink-400 dark:hover:text-white shadow-lg shadow-slate-900/10 dark:shadow-none transition-all duration-300 active:scale-95">Open Group 🚀</button>
           </div>
         </div>`;
     });
-    grid.innerHTML = html || `<p class="text-slate-400 italic text-xs col-span-3 text-center py-8">Wala pang active groups mapped.</p>`;
+    grid.innerHTML = html || `<div class="col-span-full py-20 text-center"><div class="inline-block p-6 bg-slate-50 dark:bg-slate-900/20 rounded-[3rem] border border-dashed border-slate-200 dark:border-slate-800"><i class="fas fa-folder-open text-4xl text-slate-300 mb-4 block"></i><p class="text-slate-400 italic text-sm">Wala pang active groups mapped. Create one po! ✨</p></div></div>`;
+
+    document.getElementById('cat-stat-count').innerText = App.state.categories.length;
+    document.getElementById('cat-stat-members').innerText = totalAllMembers.size;
+    const velocity = totalAllEstimated > 0 ? ((totalAllSpent / totalAllEstimated) * 100).toFixed(0) : '0';
+    document.getElementById('cat-stat-velocity').innerText = velocity + '%';
   },
 
   focusCategoryScope: function(catId) {
