@@ -104,7 +104,7 @@ const App = {
       App.state.systemUsers.forEach(u => {
         checkHtml += `
           <label class="flex items-center gap-2 p-1.5 hover:bg-slate-500/10 dark:hover:bg-slate-800/60 rounded cursor-pointer transition">
-            <input type="checkbox" name="cat_members" value="${u.email}" class="accent-pink-400">
+            <input type="checkbox" name="cat_members" value="${u.email}" checked class="accent-pink-400">
             <span class="truncate text-xs text-slate-700 dark:text-slate-300 font-bold">${u.name}</span>
           </label>`;
       });
@@ -334,7 +334,6 @@ const App = {
     const myEmail = App.state.user ? App.state.user.email.toLowerCase().trim() : "";
 
     let totalCollaborators = new Set();
-    let totalVelocitySum = 0;
     
     App.state.categories.forEach(cat => {
       cat.members.forEach(m => totalCollaborators.add(m.toLowerCase().trim()));
@@ -342,22 +341,6 @@ const App = {
       const catExpenses = App.state.expenses.filter(e => e.catId === cat.id);
       const catTotalSpend = catExpenses.reduce((sum, e) => sum + e.amount, 0);
       
-      // Calculate group balance for the current user
-      let myBalance = 0;
-      catExpenses.forEach(exp => {
-        const isPayer = exp.paidBy.toLowerCase().trim() === myEmail;
-        const myShareObj = exp.breakdown.find(p => p.email.toLowerCase().trim() === myEmail);
-        const myShare = myShareObj ? myShareObj.share : 0;
-        
-        if (isPayer) myBalance += (exp.amount - myShare);
-        else myBalance -= myShare;
-      });
-
-      // Dummy budget for velocity visualization (assuming 50k as default cap if none)
-      const mockBudget = 50000;
-      const velocity = Math.min(Math.round((catTotalSpend / mockBudget) * 100), 100);
-      totalVelocitySum += velocity;
-
       let actionsHtml = '';
       if (isAdmin) {
         actionsHtml = `
@@ -389,9 +372,6 @@ const App = {
         avatarsHtml += `<div class="h-6 w-6 rounded-full border-2 border-white dark:border-slate-900 bg-pink-500 flex items-center justify-center text-[8px] font-black text-white -ml-1.5">+${cat.members.length - 4}</div>`;
       }
 
-      const balanceColor = myBalance > 0 ? 'text-teal-500' : (myBalance < 0 ? 'text-rose-500' : 'text-slate-400');
-      const balanceLabel = myBalance > 0 ? 'Collecting' : (myBalance < 0 ? 'To Pay' : 'Settled');
-
       html += `
         <div class="bg-white dark:bg-slate-900/30 rounded-[2rem] border border-slate-200 dark:border-slate-800 flex flex-col shadow-sm hover:shadow-xl hover:scale-[1.02] transition-all duration-300 overflow-hidden group">
           <div class="h-2 w-full bg-gradient-to-r ${config.color}"></div>
@@ -411,25 +391,9 @@ const App = {
               <p class="text-[11px] text-slate-400 dark:text-slate-500 font-medium mt-1 line-clamp-1">${App.escapeHtml(cat.description) || 'No summary notes written.'}</p>
             </div>
 
-            <div class="grid grid-cols-2 gap-4 py-2">
-              <div>
-                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Group MVP</p>
-                <p class="text-xs font-black text-slate-800 dark:text-slate-200">₱${catTotalSpend.toLocaleString('en-US', {minimumFractionDigits:0})}</p>
-              </div>
-              <div class="text-right">
-                <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Personal</p>
-                <p class="text-xs font-black ${balanceColor}">${myBalance === 0 ? '✓' : ''} ₱${Math.abs(myBalance).toFixed(0)} <span class="text-[8px] uppercase opacity-60">${balanceLabel}</span></p>
-              </div>
-            </div>
-
-            <div class="space-y-1.5">
-              <div class="flex justify-between items-center text-[9px] font-black uppercase tracking-tighter">
-                <span class="text-slate-400">Budget Velocity</span>
-                <span class="text-indigo-500">${velocity}%</span>
-              </div>
-              <div class="h-1.5 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden">
-                <div class="h-full bg-gradient-to-r ${config.color} rounded-full" style="width: ${velocity}%"></div>
-              </div>
+            <div class="py-2">
+              <p class="text-[9px] font-bold text-slate-400 uppercase tracking-widest">Total Group Expenses</p>
+              <p class="text-md font-black text-slate-800 dark:text-slate-200">₱${catTotalSpend.toLocaleString('en-US', {minimumFractionDigits:2})}</p>
             </div>
 
             <div class="pt-2 border-t border-slate-100 dark:border-slate-800/60 flex items-center justify-between">
@@ -445,14 +409,9 @@ const App = {
 
     const statCountEl = document.getElementById('cat-stat-count');
     const statMembersEl = document.getElementById('cat-stat-members');
-    const statVelocityEl = document.getElementById('cat-stat-velocity');
     
     if(statCountEl) statCountEl.innerText = App.state.categories.length;
     if(statMembersEl) statMembersEl.innerText = totalCollaborators.size;
-    if(statVelocityEl) {
-      const avgVelocity = App.state.categories.length > 0 ? Math.round(totalVelocitySum / App.state.categories.length) : 0;
-      statVelocityEl.innerText = avgVelocity + '%';
-    }
 
     grid.innerHTML = html || `<p class="text-slate-400 italic text-xs col-span-3 text-center py-8">Wala pang active groups mapped.</p>`;
   },
@@ -1232,6 +1191,11 @@ const App = {
     checkboxes.forEach(cb => cb.checked = checked);
   },
 
+  toggleAllCategoryMembers: function(checked) {
+    const checkboxes = document.querySelectorAll('input[name="cat_members"]');
+    checkboxes.forEach(cb => cb.checked = checked);
+  },
+
   closeModal: function(id) { 
     const el = document.getElementById(id);
     if(el) {
@@ -1256,6 +1220,8 @@ const App = {
       } else if (id === 'category-modal') {
         if (title) title.innerHTML = `<i class="fas fa-folder-plus text-sm"></i> Create New Gasto Group`;
         if (submitBtn) submitBtn.innerText = "Create New Group";
+        const selectAll = document.getElementById('cat-select-all');
+        if (selectAll) selectAll.checked = true;
       } else if (id === 'estimator-modal') {
         if (title) title.innerHTML = `<i class="fas fa-folder-plus text-sm"></i> Add Proposed Trip Goal`;
         if (submitBtn) submitBtn.innerText = "Add Pipeline Line Item";
@@ -1499,9 +1465,14 @@ const App = {
     document.getElementById('cat-form-type').value = cat.type;
 
     const checkBoxes = document.querySelectorAll('input[name="cat_members"]');
+    let allChecked = true;
     checkBoxes.forEach(box => {
-      box.checked = cat.members.includes(box.value.toLowerCase());
+      const isMember = cat.members.includes(box.value.toLowerCase());
+      box.checked = isMember;
+      if (!isMember) allChecked = false;
     });
+    const selectAll = document.getElementById('cat-select-all');
+    if (selectAll) selectAll.checked = allChecked;
 
     App.openModal('category-modal');
   },
