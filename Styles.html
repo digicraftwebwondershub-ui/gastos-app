@@ -99,4 +99,13 @@
   .animate-scale-up {
     animation: scaleUpFull 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
   }
+
+  /* Slow bounce for a calmer effect */
+  @keyframes bounceSlow {
+    0%, 100% { transform: translateY(-10%); animation-timing-function: cubic-bezier(0.8, 0, 1, 1); }
+    50% { transform: translateY(0); animation-timing-function: cubic-bezier(0, 0, 0.2, 1); }
+  }
+  .animate-bounce-slow {
+    animation: bounceSlow 2s infinite;
+  }
 </style>

@@ -919,7 +919,7 @@ const App = {
         title: "The Salo Master",
         subtitle: "Abono King/Queen Yarn? 👑",
         icon: "fa-crown",
-        animation: "animate-bounce",
+        animation: "animate-bounce-slow",
         color: "text-amber-500",
         bg: "bg-amber-500/10",
         winner: sortedByAbono[0] ? App.resolveUserDisplayName(sortedByAbono[0].email) : "N/A",
@@ -933,7 +933,7 @@ const App = {
         title: "The Gastador Era",
         subtitle: "Investment Yarn? 💅",
         icon: "fa-coins",
-        animation: "animate-bounce",
+        animation: "animate-bounce-slow",
         color: "text-pink-500",
         bg: "bg-pink-500/10",
         winner: sortedBySpend[0] ? App.resolveUserDisplayName(sortedBySpend[0].email) : "N/A",
@@ -947,7 +947,7 @@ const App = {
         title: "The Swift Payer",
         subtitle: "Bayad Agad Streak 🔥",
         icon: "fa-bolt",
-        animation: "animate-bounce",
+        animation: "animate-bounce-slow",
         color: "text-blue-500",
         bg: "bg-blue-500/10",
         winner: sortedBySpeed[0] ? App.resolveUserDisplayName(sortedBySpeed[0].email) : "N/A",
@@ -961,7 +961,7 @@ const App = {
         title: "The Ultimate Joiner",
         subtitle: "Laging Present Yarn? 🦋",
         icon: "fa-people-group",
-        animation: "animate-bounce",
+        animation: "animate-bounce-slow",
         color: "text-teal-500",
         bg: "bg-teal-500/10",
         winner: sortedByParticipation[0] ? App.resolveUserDisplayName(sortedByParticipation[0].email) : "N/A",
@@ -975,7 +975,7 @@ const App = {
         title: "The Budget Master",
         subtitle: "Wais sa Gastusan Energy 🛡️",
         icon: "fa-shield-halved",
-        animation: "animate-bounce",
+        animation: "animate-bounce-slow",
         color: "text-emerald-500",
         bg: "bg-emerald-500/10",
         winner: sortedBySaving[0] ? App.resolveUserDisplayName(sortedBySaving[0].email) : "N/A",
@@ -989,7 +989,7 @@ const App = {
         title: "The Resibo Master",
         subtitle: "Audit Energy is Real! 📋",
         icon: "fa-clipboard-check",
-        animation: "animate-bounce",
+        animation: "animate-bounce-slow",
         color: "text-purple-500",
         bg: "bg-purple-500/10",
         winner: sortedByAuditor[0] ? App.resolveUserDisplayName(sortedByAuditor[0].email) : "N/A",
@@ -1019,8 +1019,8 @@ const App = {
              <i class="fas ${a.icon} text-9xl"></i>
           </div>
           <div class="flex flex-col items-center text-center space-y-5 relative z-10">
-            <div class="${a.bg} ${a.color} w-20 h-20 rounded-[2rem] flex items-center justify-center text-3xl shadow-inner group-hover:scale-110 transition-all duration-500 group-hover:rotate-6 ${a.animation || ''}">
-              <i class="fas ${a.icon}"></i>
+            <div class="${a.bg} ${a.color} w-20 h-20 rounded-[2rem] flex items-center justify-center text-3xl shadow-inner">
+              <i class="fas ${a.icon} ${a.animation || ''}"></i>
             </div>
             <div class="space-y-1">
               <h4 class="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">${a.subtitle}</h4>
@@ -1077,8 +1077,8 @@ const App = {
             </div>
 
             <div class="flex items-center gap-4 mb-8 relative z-10">
-              <div class="${a.bg} ${a.color} w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-inner ${a.animation || ''}">
-                <i class="fas ${a.icon}"></i>
+              <div class="${a.bg} ${a.color} w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-inner">
+                <i class="fas ${a.icon} ${a.animation || ''}"></i>
               </div>
               <div>
                 <h5 class="text-lg font-black text-slate-900 dark:text-white uppercase tracking-widest">${a.title}</h5>
