@@ -487,6 +487,58 @@ const App = {
     App.openModal('breakdown-modal');
   },
 
+  showSettlementBreakdown: function(fromEmail, toEmail, totalOptimized) {
+    const from = fromEmail.toLowerCase().trim();
+    const to = toEmail.toLowerCase().trim();
+    
+    const summaryEl = document.getElementById('debt-breakdown-summary');
+    const listEl = document.getElementById('debt-breakdown-list');
+    const totalEl = document.getElementById('debt-breakdown-total');
+    
+    if(!summaryEl || !listEl || !totalEl) return;
+    
+    summaryEl.innerHTML = `This breakdown shows all unpaid expenses for <b>${App.resolveUserDisplayName(from)}</b>. The FinTrack AI has optimized the network so that you pay <b>${App.resolveUserDisplayName(to)}</b> to settle everything at once.`;
+    
+    let html = '';
+    let rawDirectSum = 0;
+    
+    // Scan all expenses where 'from' has an unpaid share
+    App.state.expenses.forEach(exp => {
+      const shareObj = exp.breakdown.find(p => p.email.toLowerCase().trim() === from);
+      if (shareObj && shareObj.share > 0.01 && shareObj.status === "Unpaid") {
+        const payer = exp.paidBy.toLowerCase().trim();
+        const isOwedToTarget = payer === to;
+        if (isOwedToTarget) rawDirectSum += shareObj.share;
+
+        html += `
+          <div class="bg-slate-50 dark:bg-slate-950/40 p-3 rounded-2xl border ${isOwedToTarget ? 'border-indigo-500/40' : 'border-slate-200 dark:border-slate-800'} flex justify-between items-center transition hover:border-indigo-400">
+            <div class="pr-2 overflow-hidden">
+              <p class="text-xs font-black text-slate-900 dark:text-white line-clamp-1">${exp.title}</p>
+              <div class="flex items-center gap-2 mt-0.5">
+                <span class="text-[9px] font-mono text-slate-400 uppercase">${exp.date}</span>
+                <span class="text-[9px] font-bold ${isOwedToTarget ? 'text-indigo-500' : 'text-amber-500'} bg-slate-100 dark:bg-slate-900 px-1 rounded-md border border-slate-200 dark:border-slate-800">Paid by: ${App.resolveUserDisplayName(payer)}</span>
+              </div>
+            </div>
+            <span class="text-xs font-mono font-black text-rose-500">₱${shareObj.share.toFixed(2)}</span>
+          </div>`;
+      }
+    });
+    
+    // Add explanation for optimization delta
+    html += `
+      <div class="bg-indigo-500/5 dark:bg-indigo-500/10 p-4 rounded-2xl border border-dashed border-indigo-500/30 mt-4 space-y-2">
+        <p class="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1.5"><i class="fas fa-microchip"></i> Multilateral Optimization Logic</p>
+        <p class="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed italic">
+          Instead of paying multiple people separately, FinTrack simplified the debt loop. By paying <b>₱${totalOptimized.toFixed(2)}</b> to <b>${App.resolveUserDisplayName(to)}</b>, your total liabilities to the entire group are fully settled.
+        </p>
+      </div>`;
+    
+    listEl.innerHTML = html || `<p class="text-center text-slate-400 py-6 italic">No unpaid items found for this user.</p>`;
+    totalEl.innerText = `₱${totalOptimized.toFixed(2)}`;
+    
+    App.openModal('debt-breakdown-modal');
+  },
+
   renderSettlementsModule: function(matrices) {
     const cardsContainer = document.getElementById('settlement-simplification-cards');
     if(!cardsContainer) return;
@@ -497,9 +549,12 @@ const App = {
     matrices.myDebtList.forEach(d => {
       html += `
         <div class="bg-white dark:bg-rose-950/5 border border-slate-200 dark:border-rose-500/20 p-4 rounded-3xl flex flex-col justify-between space-y-4 shadow-sm dark:shadow-none hover:shadow-md transition">
-          <div>
-            <p class="text-[9px] font-mono text-rose-500 uppercase tracking-widest font-bold flex items-center gap-1"><i class="fas fa-circle-exclamation"></i> Unpaid Liability</p>
-            <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">You owe <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(d.to)}</b></h4>
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-[9px] font-mono text-rose-500 uppercase tracking-widest font-bold flex items-center gap-1"><i class="fas fa-circle-exclamation"></i> Unpaid Liability</p>
+              <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">You owe <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(d.to)}</b></h4>
+            </div>
+            <button onclick="App.showSettlementBreakdown('${myEmail}', '${d.to}', ${d.amount})" class="text-[10px] text-slate-400 hover:text-indigo-500 transition font-bold"><i class="fas fa-list-ul"></i> View Details</button>
           </div>
           <div class="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-3">
             <span class="text-sm font-mono font-black text-rose-500">₱${d.amount.toFixed(2)}</span>
@@ -514,9 +569,12 @@ const App = {
     matrices.myReceivablesList.forEach(r => {
       html += `
         <div class="bg-white dark:bg-teal-950/5 border border-slate-200 dark:border-teal-500/20 p-4 rounded-3xl flex flex-col justify-between space-y-4 shadow-sm dark:shadow-none hover:shadow-md transition">
-          <div>
-            <p class="text-[9px] font-mono text-teal-500 tracking-widest font-bold flex items-center gap-1"><i class="fas fa-bell-ring animate-bounce text-xs"></i> Awaiting Collection</p>
-            <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">Dapat kang bayaran ni <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(r.from)}</b></h4>
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-[9px] font-mono text-teal-500 tracking-widest font-bold flex items-center gap-1"><i class="fas fa-bell-ring animate-bounce text-xs"></i> Awaiting Collection</p>
+              <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">Dapat kang bayaran ni <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(r.from)}</b></h4>
+            </div>
+            <button onclick="App.showSettlementBreakdown('${r.from}', '${myEmail}', ${r.amount})" class="text-[10px] text-slate-400 hover:text-indigo-500 transition font-bold"><i class="fas fa-list-ul"></i> View Details</button>
           </div>
           <div class="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-3">
             <span class="text-sm font-mono font-black text-teal-600 dark:text-teal-400">₱${r.amount.toFixed(2)}</span>
@@ -534,12 +592,15 @@ const App = {
         otherDebts.forEach(d => {
           html += `
             <div class="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 p-4 rounded-3xl flex flex-col justify-between space-y-4 shadow-sm hover:shadow-md transition">
-              <div>
-                <p class="text-[9px] font-mono text-indigo-500 uppercase tracking-widest font-bold flex items-center gap-1"><i class="fas fa-circle-nodes"></i> Network Liability</p>
-                <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">
-                  <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(d.from)}</b> owes 
-                  <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(d.to)}</b>
-                </h4>
+              <div class="flex justify-between items-start">
+                <div>
+                  <p class="text-[9px] font-mono text-indigo-500 uppercase tracking-widest font-bold flex items-center gap-1"><i class="fas fa-circle-nodes"></i> Network Liability</p>
+                  <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">
+                    <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(d.from)}</b> owes 
+                    <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(d.to)}</b>
+                  </h4>
+                </div>
+                <button onclick="App.showSettlementBreakdown('${d.from}', '${d.to}', ${d.amount})" class="text-[10px] text-slate-400 hover:text-indigo-500 transition font-bold"><i class="fas fa-list-ul"></i> View Details</button>
               </div>
               <div class="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-3">
                 <span class="text-sm font-mono font-black text-slate-900 dark:text-white">₱${d.amount.toFixed(2)}</span>
