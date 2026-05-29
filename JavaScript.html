@@ -497,10 +497,13 @@ const App = {
 
     if(!summaryEl || !listEl || !totalEl) return;
 
-    summaryEl.innerHTML = `This breakdown shows all unpaid expenses for <b>${App.resolveUserDisplayName(from)}</b>. The FinTrack AI has optimized the network so that you pay <b>${App.resolveUserDisplayName(to)}</b> to settle everything at once.`;
+    summaryEl.innerHTML = `Breakdown of unpaid items for <b>${App.resolveUserDisplayName(from)}</b>. To simplify group payments, the total is consolidated and owed to <b>${App.resolveUserDisplayName(to)}</b>.`;
 
-    let html = '';
-    let rawDirectSum = 0;
+    let directHtml = '<div class="space-y-2 mt-4"><p class="text-[10px] font-black uppercase text-indigo-500 px-1">Direct Owed to ' + App.resolveUserDisplayName(to) + '</p>';
+    let redirectedHtml = '<div class="space-y-2 mt-6 border-t border-slate-100 dark:border-slate-800 pt-4"><p class="text-[10px] font-black uppercase text-amber-500 px-1">Optimization: Indirect items consolidated to ' + App.resolveUserDisplayName(to) + '</p>';
+
+    let directCount = 0;
+    let indirectCount = 0;
 
     // Scan all expenses where 'from' has an unpaid share
     App.state.expenses.forEach(exp => {
@@ -508,32 +511,43 @@ const App = {
       if (shareObj && shareObj.share > 0.01 && shareObj.status === "Unpaid") {
         const payer = exp.paidBy.toLowerCase().trim();
         const isOwedToTarget = payer === to;
-        if (isOwedToTarget) rawDirectSum += shareObj.share;
 
-        html += `
+        const itemHtml = `
           <div class="bg-slate-50 dark:bg-slate-950/40 p-3 rounded-2xl border ${isOwedToTarget ? 'border-indigo-500/40' : 'border-slate-200 dark:border-slate-800'} flex justify-between items-center transition hover:border-indigo-400">
             <div class="pr-2 overflow-hidden">
               <p class="text-xs font-black text-slate-900 dark:text-white line-clamp-1">${exp.title}</p>
               <div class="flex items-center gap-2 mt-0.5">
                 <span class="text-[9px] font-mono text-slate-400 uppercase">${exp.date}</span>
-                <span class="text-[9px] font-bold ${isOwedToTarget ? 'text-indigo-500' : 'text-amber-500'} bg-slate-100 dark:bg-slate-900 px-1 rounded-md border border-slate-200 dark:border-slate-800">Paid by: ${App.resolveUserDisplayName(payer)}</span>
+                ${!isOwedToTarget ? `<span class="text-[9px] font-bold text-amber-500 bg-amber-500/5 px-1 rounded border border-amber-500/10">Originally Paid by: ${App.resolveUserDisplayName(payer)}</span>` : ''}
               </div>
             </div>
             <span class="text-xs font-mono font-black text-rose-500">₱${shareObj.share.toFixed(2)}</span>
           </div>`;
+
+        if (isOwedToTarget) {
+          directHtml += itemHtml; directCount++;
+        } else {
+          redirectedHtml += itemHtml; indirectCount++;
+        }
       }
     });
 
-    // Add explanation for optimization delta
-    html += `
-      <div class="bg-indigo-500/5 dark:bg-indigo-500/10 p-4 rounded-2xl border border-dashed border-indigo-500/30 mt-4 space-y-2">
-        <p class="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1.5"><i class="fas fa-microchip"></i> Multilateral Optimization Logic</p>
+    directHtml += directCount === 0 ? '<p class="text-[10px] text-slate-400 italic px-1">No direct items.</p>' : '';
+    directHtml += '</div>';
+
+    redirectedHtml += indirectCount === 0 ? '<p class="text-[10px] text-slate-400 italic px-1">No indirect items.</p>' : '';
+    redirectedHtml += '</div>';
+
+    // Add explanation for optimization logic
+    const optimizationInfo = `
+      <div class="bg-indigo-500/5 dark:bg-indigo-500/10 p-4 rounded-2xl border border-dashed border-indigo-500/30 mt-6 space-y-2">
+        <p class="text-[10px] font-black text-indigo-500 uppercase tracking-widest flex items-center gap-1.5"><i class="fas fa-shuffle"></i> Why consolidate?</p>
         <p class="text-[10px] text-slate-500 dark:text-slate-400 leading-relaxed italic">
-          Instead of paying multiple people separately, FinTrack simplified the debt loop. By paying <b>₱${totalOptimized.toFixed(2)}</b> to <b>${App.resolveUserDisplayName(to)}</b>, your total liabilities to the entire group are fully settled.
+          If <b>A</b> owes <b>B</b>, and <b>B</b> owes <b>C</b>, FinTrack simplifies it so <b>A</b> pays <b>C</b> directly. This reduces the total number of transfers needed for everyone.
         </p>
       </div>`;
 
-    listEl.innerHTML = html || `<p class="text-center text-slate-400 py-6 italic">No unpaid items found for this user.</p>`;
+    listEl.innerHTML = directHtml + redirectedHtml + optimizationInfo;
     totalEl.innerText = `₱${totalOptimized.toFixed(2)}`;
 
     App.openModal('debt-breakdown-modal');
