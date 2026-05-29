@@ -449,6 +449,9 @@ const App = {
     if(!contentTarget) return;
     let html = '';
 
+    const isAdmin = App.state.user && App.state.user.role === 'Admin';
+    const myEmail = App.state.user ? App.state.user.email.toLowerCase() : "";
+
     exp.breakdown.forEach(item => {
       if (item.share <= 0) return;
       const isPaid = item.status === 'Paid';
@@ -460,9 +463,16 @@ const App = {
               <i class="fas ${isPaid ? 'fa-circle-check' : 'fa-circle-dot'} mr-1"></i>${isPaid ? 'Bayad na' : 'Sisingilin pa'}
             </p>
           </div>
-          <span class="text-xs font-mono font-black ${isPaid ? 'text-slate-400 dark:text-slate-500' : 'text-rose-500'}">
-            ₱${item.share.toFixed(2)}
-          </span>
+          <div class="flex items-center gap-3">
+            <span class="text-xs font-mono font-black ${isPaid ? 'text-slate-400 dark:text-slate-500' : 'text-rose-500'}">
+              ₱${item.share.toFixed(2)}
+            </span>
+            ${(!isPaid && (isAdmin || exp.paidBy.toLowerCase().trim() === myEmail)) ? `
+              <button onclick="App.initiateSettlementAction('${item.email}', ${item.share}, false, '${item.email}', '${exp.paidBy}', '${exp.catId}')" class="text-[10px] bg-emerald-500 text-white px-2 py-1 rounded-lg font-bold hover:bg-emerald-400 transition" title="Mark as Paid">
+                <i class="fas fa-check"></i>
+              </button>
+            ` : ''}
+          </div>
         </div>`;
     });
 
@@ -488,7 +498,7 @@ const App = {
             <span class="text-sm font-mono font-black text-rose-500">₱${d.amount.toFixed(2)}</span>
             <div class="flex items-center gap-1.5">
               <button onclick="App.launchDirectQRViewer('${d.to}')" class="bg-indigo-500 text-white text-[10px] font-black px-2.5 py-1.5 rounded-xl transition hover:bg-indigo-400"><i class="fas fa-qrcode"></i> Scan QR</button>
-              <button onclick="App.initiateSettlementAction('${d.to}', ${d.amount})" class="bg-rose-500 text-white dark:text-slate-950 text-[10px] font-black px-3 py-1.5 rounded-xl uppercase transition hover:bg-rose-400 shadow-sm shadow-rose-500/10">Pay Now 💸</button>
+              <button onclick="App.initiateSettlementAction('${d.to}', ${d.amount}, false)" class="bg-rose-500 text-white dark:text-slate-950 text-[10px] font-black px-3 py-1.5 rounded-xl uppercase transition hover:bg-rose-400 shadow-sm shadow-rose-500/10">Pay Now 💸</button>
             </div>
           </div>
         </div>`;
@@ -720,26 +730,68 @@ const App = {
     }, 110);
   },
 
-  initiateSettlementAction: function(peerEmail, exactAmt, isReceivable = false, overrideFrom = null, overrideTo = null) {
+  openSettleModal: function() {
     App.openModal('settle-modal');
     const catSelect = document.getElementById('settle-form-cat');
+    const filterCatEl = document.getElementById('filter-category');
+    let activeFilterCat = filterCatEl ? filterCatEl.value : '*';
+    if (activeFilterCat === '*') {
+      activeFilterCat = App.state.categories.length > 0 ? App.state.categories[0].id : '';
+    }
+    
+    if (catSelect && activeFilterCat) {
+      catSelect.value = activeFilterCat;
+    }
+    App.handleSettleCategoryChange();
+    
+    const amtInput = document.getElementById('settle-form-amount');
+    const dateInput = document.getElementById('settle-form-date');
+    if(amtInput) amtInput.value = "";
+    if(dateInput) dateInput.value = new Date().toISOString().substring(0,10);
+  },
+
+  handleSettleCategoryChange: function() {
+    const catSelect = document.getElementById('settle-form-cat');
+    if(!catSelect) return;
+    const catId = catSelect.value;
+    const cat = App.state.categories.find(c => c.id === catId);
+    if(!cat) return;
+    
+    const fromSelect = document.getElementById('settle-form-from');
+    const toSelect = document.getElementById('settle-form-to');
+    
+    let html = '';
+    cat.members.forEach(m => {
+      html += `<option value="${m}">${App.resolveUserDisplayName(m)}</option>`;
+    });
+    
+    if(fromSelect) fromSelect.innerHTML = html;
+    if(toSelect) toSelect.innerHTML = html;
+  },
+
+  initiateSettlementAction: function(peerEmail, exactAmt, isReceivable = false, overrideFrom = null, overrideTo = null, catId = null) {
+    App.openModal('settle-modal');
+    const catSelect = document.getElementById('settle-form-cat');
+    const filterCatEl = document.getElementById('filter-category');
+    const activeFilterCat = catId || (filterCatEl ? filterCatEl.value : '*');
+    
+    if (catSelect && activeFilterCat !== '*') {
+      catSelect.value = activeFilterCat;
+    }
+    
+    App.handleSettleCategoryChange();
+
     const fromSelect = document.getElementById('settle-form-from');
     const toSelect = document.getElementById('settle-form-to');
     const amtInput = document.getElementById('settle-form-amount');
     const dateInput = document.getElementById('settle-form-date');
-    const myEmail = App.state.user ? App.state.user.email : "";
+    const myEmail = App.state.user ? App.state.user.email.toLowerCase().trim() : "";
 
-    const filterCatEl = document.getElementById('filter-category');
-    const activeFilterCat = filterCatEl ? filterCatEl.value : '*';
-    if (catSelect && activeFilterCat !== '*') {
-      catSelect.value = activeFilterCat;
-    }
+    const finalFrom = (overrideFrom || (isReceivable ? peerEmail : myEmail)).toLowerCase().trim();
+    const finalTo = (overrideTo || (isReceivable ? myEmail : peerEmail)).toLowerCase().trim();
 
-    const finalFrom = overrideFrom || (isReceivable ? peerEmail : myEmail);
-    const finalTo = overrideTo || (isReceivable ? myEmail : peerEmail);
-
-    if(fromSelect) fromSelect.innerHTML = `<option value="${finalFrom}">${App.resolveUserDisplayName(finalFrom)}</option>`;
-    if(toSelect) toSelect.innerHTML = `<option value="${finalTo}">${App.resolveUserDisplayName(finalTo)}</option>`;
+    if(fromSelect) fromSelect.value = finalFrom;
+    if(toSelect) toSelect.value = finalTo;
     if(amtInput) amtInput.value = exactAmt.toFixed(2);
     if(dateInput) dateInput.value = new Date().toISOString().substring(0,10);
   },
@@ -750,65 +802,129 @@ const App = {
     const userAggMap = {};
 
     expData.forEach(exp => {
-      const payer = exp.paidBy;
-      if(!userAggMap[payer]) userAggMap[payer] = { email: payer, grossSpend: 0, totalAbono: 0, debtExposures: 0 };
+      const payer = exp.paidBy.toLowerCase().trim();
+      if(!userAggMap[payer]) userAggMap[payer] = { email: payer, grossSpend: 0, totalAbono: 0, debtExposures: 0, timeToPay: [] };
       userAggMap[payer].totalAbono += exp.amount;
 
       exp.breakdown.forEach(p => {
-        const dEmail = p.email;
-        if(!userAggMap[dEmail]) userAggMap[dEmail] = { email: dEmail, grossSpend: 0, totalAbono: 0, debtExposures: 0 };
+        const dEmail = p.email.toLowerCase().trim();
+        if(!userAggMap[dEmail]) userAggMap[dEmail] = { email: dEmail, grossSpend: 0, totalAbono: 0, debtExposures: 0, timeToPay: [] };
         userAggMap[dEmail].grossSpend += p.share;
         if(payer !== dEmail) userAggMap[dEmail].debtExposures += p.share;
       });
     });
 
+    // Speedster Logic: Calculate time delta between expense and settlement
+    App.state.settlements.forEach(s => {
+      const debtor = s.fromUser.toLowerCase().trim();
+      const creditor = s.toUser.toLowerCase().trim();
+      if (userAggMap[debtor]) {
+        // Find matching expenses this settlement might be related to
+        const matchingExp = expData.find(e => e.catId === s.catId && e.paidBy.toLowerCase().trim() === creditor);
+        if (matchingExp) {
+          const d1 = new Date(matchingExp.date);
+          const d2 = new Date(s.date);
+          const diff = (d2 - d1) / (1000 * 60 * 60 * 24); // days
+          if (diff >= 0) userAggMap[debtor].timeToPay.push(diff);
+        }
+      }
+    });
+
+    // Budget Master Logic: Estimates vs Actuals
+    const budgetMasterMap = {};
+    App.state.estimatorLogs.forEach(est => {
+      const participants = est.participants && est.participants.length > 0 ? est.participants : [];
+      const share = est.amount / (participants.length || 1);
+      participants.forEach(p => {
+        const email = p.toLowerCase();
+        if (!budgetMasterMap[email]) budgetMasterMap[email] = { estimated: 0, actual: 0 };
+        budgetMasterMap[email].estimated += share;
+      });
+    });
+
+    Object.values(userAggMap).forEach(u => {
+      if (budgetMasterMap[u.email]) budgetMasterMap[u.email].actual = u.grossSpend;
+    });
+
     const sortedByAbono = Object.values(userAggMap).sort((a,b) => b.totalAbono - a.totalAbono);
-    const maxAbono = sortedByAbono[0] ? sortedByAbono[0].totalAbono : 1;
-
     const sortedBySpend = Object.values(userAggMap).sort((a,b) => b.grossSpend - a.grossSpend);
-    const maxSpend = sortedBySpend[0] ? sortedBySpend[0].grossSpend : 1;
-
-    let html = '<div class="grid grid-cols-1 lg:grid-cols-2 gap-12">';
+    const sortedBySpeed = Object.values(userAggMap)
+      .filter(u => u.timeToPay.length > 0)
+      .sort((a,b) => (a.timeToPay.reduce((s,x)=>s+x,0)/a.timeToPay.length) - (b.timeToPay.reduce((s,x)=>s+x,0)/b.timeToPay.length));
     
-    // Column 1: King of Abono
-    html += '<div><h3 class="text-xs font-mono tracking-widest uppercase text-slate-800 dark:text-white mb-6 flex items-center gap-2"><i class="fas fa-crown text-amber-400 animate-pulse text-sm"></i> Top Tagasalo (King of Abono)</h3><div class="space-y-6">';
-    sortedByAbono.forEach((user, i) => {
-      const pct = (user.totalAbono / maxAbono) * 100;
-      html += `
-        <div class="space-y-1">
-          <div class="flex justify-between text-xs font-mono text-slate-600 dark:text-slate-400">
-            <span><b class="text-slate-400 dark:text-slate-500">#${i+1}</b> ${App.resolveUserDisplayName(user.email)}</span>
-            <span>Total Abono: <b class="text-emerald-500 font-sans font-black">₱${user.totalAbono.toLocaleString('en-US',{minimumFractionDigits:2})}</b></span>
-          </div>
-          <div class="w-full bg-slate-100 dark:bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800 p-0.5 shadow-inner">
-            <div class="h-full bg-gradient-to-r from-pink-400 to-purple-400 rounded-full transition-all duration-1000 ease-out" style="width: ${pct}%"></div>
-          </div>
-          <div class="flex justify-between text-[10px] font-mono text-slate-400 px-1">
-            <span>Inabono for others: ₱${user.debtExposures.toFixed(2)}</span>
-          </div>
-        </div>`;
-    });
-    html += '</div></div>';
+    const sortedBySaving = Object.keys(budgetMasterMap)
+      .map(email => ({ email, saving: budgetMasterMap[email].estimated - budgetMasterMap[email].actual }))
+      .sort((a,b) => b.saving - a.saving);
 
-    // Column 2: Most Magastos
-    html += '<div><h3 class="text-xs font-mono tracking-widest uppercase text-slate-800 dark:text-white mb-6 flex items-center gap-2"><i class="fas fa-fire-flame-curved text-orange-500 animate-pulse text-sm"></i> Most Magastos (Share King)</h3><div class="space-y-6">';
-    sortedBySpend.forEach((user, i) => {
-      const pct = (user.grossSpend / maxSpend) * 100;
+    const awards = [
+      {
+        title: "The King of Abono",
+        subtitle: "Highest Total Paid",
+        icon: "fa-crown",
+        color: "text-amber-500",
+        bg: "bg-amber-500/10",
+        winner: sortedByAbono[0] ? App.resolveUserDisplayName(sortedByAbono[0].email) : "N/A",
+        value: sortedByAbono[0] ? `₱${sortedByAbono[0].totalAbono.toLocaleString()}` : "₱0",
+        desc: "Laging handang sumalo para sa barkada."
+      },
+      {
+        title: "The Big Spender",
+        subtitle: "Highest Personal Share",
+        icon: "fa-coins",
+        color: "text-pink-500",
+        bg: "bg-pink-500/10",
+        winner: sortedBySpend[0] ? App.resolveUserDisplayName(sortedBySpend[0].email) : "N/A",
+        value: sortedBySpend[0] ? `₱${sortedBySpend[0].grossSpend.toLocaleString()}` : "₱0",
+        desc: "Sulit ang bawat sentimo sa mga gala."
+      },
+      {
+        title: "The MVP Speedster",
+        subtitle: "Quickest Payer",
+        icon: "fa-bolt",
+        color: "text-blue-500",
+        bg: "bg-blue-500/10",
+        winner: sortedBySpeed[0] ? App.resolveUserDisplayName(sortedBySpeed[0].email) : "N/A",
+        value: sortedBySpeed[0] ? `${(sortedBySpeed[0].timeToPay.reduce((s,x)=>s+x,0)/sortedBySpeed[0].timeToPay.length).toFixed(1)} Days` : "N/A",
+        desc: "Mabilis pa sa alas-kwatro magbayad."
+      },
+      {
+        title: "The Budget Master",
+        subtitle: "Top Saver",
+        icon: "fa-shield-halved",
+        color: "text-emerald-500",
+        bg: "bg-emerald-500/10",
+        winner: sortedBySaving[0] ? App.resolveUserDisplayName(sortedBySaving[0].email) : "N/A",
+        value: sortedBySaving[0] ? `₱${sortedBySaving[0].saving.toLocaleString()}` : "₱0",
+        desc: "Under budget lagi! Wais sa gastusan."
+      }
+    ];
+
+    let html = `
+      <div class="text-center mb-8">
+        <h3 class="text-xl font-black text-slate-900 dark:text-white uppercase tracking-widest">🏆 FinTrack Hall of Fame</h3>
+        <p class="text-xs text-slate-500 mt-1 font-medium">Recognizing the legends of the Ambagan Matrix</p>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">`;
+
+    awards.forEach(a => {
       html += `
-        <div class="space-y-1">
-          <div class="flex justify-between text-xs font-mono text-slate-600 dark:text-slate-400">
-            <span><b class="text-slate-400 dark:text-slate-500">#${i+1}</b> ${App.resolveUserDisplayName(user.email)}</span>
-            <span>Personal Share: <b class="text-orange-500 font-sans font-black">₱${user.grossSpend.toLocaleString('en-US',{minimumFractionDigits:2})}</b></span>
-          </div>
-          <div class="w-full bg-slate-100 dark:bg-slate-950 h-3 rounded-full overflow-hidden border border-slate-200 dark:border-slate-800 p-0.5 shadow-inner">
-            <div class="h-full bg-gradient-to-r from-orange-400 to-amber-400 rounded-full transition-all duration-1000 ease-out" style="width: ${pct}%"></div>
-          </div>
-          <div class="flex justify-between text-[10px] font-mono text-slate-400 px-1">
-            <span>Net Contribution: ₱${user.totalAbono.toFixed(2)}</span>
+        <div class="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 p-6 rounded-[2.5rem] shadow-sm hover:shadow-md transition-all duration-300 group hover:-translate-y-1">
+          <div class="flex flex-col items-center text-center space-y-4">
+            <div class="${a.bg} ${a.color} w-16 h-16 rounded-3xl flex items-center justify-center text-2xl shadow-inner group-hover:scale-110 transition-transform duration-500">
+              <i class="fas ${a.icon} ${a.icon === 'fa-crown' ? 'animate-bounce' : ''}"></i>
+            </div>
+            <div>
+              <h4 class="text-[10px] font-black uppercase tracking-widest text-slate-400">${a.subtitle}</h4>
+              <h3 class="text-md font-black text-slate-900 dark:text-white mt-1">${a.title}</h3>
+            </div>
+            <div class="py-3 border-y border-slate-100 dark:border-slate-800/60 w-full">
+              <p class="text-lg font-black bg-gradient-to-r from-pink-500 to-purple-500 bg-clip-text text-transparent truncate px-2">${a.winner}</p>
+              <p class="text-xs font-mono font-bold text-slate-400 mt-1">${a.value}</p>
+            </div>
+            <p class="text-[10px] font-medium text-slate-500 italic leading-relaxed">"${a.desc}"</p>
           </div>
         </div>`;
     });
-    html += '</div></div>';
 
     container.innerHTML = html + '</div>';
   },
