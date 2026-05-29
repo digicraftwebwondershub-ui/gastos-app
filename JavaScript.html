@@ -212,28 +212,19 @@ const App = {
     const pairMatrix = {}; // { "user1|user2": balance } positive: u1 owes u2
     const myEmail = App.state.user ? App.state.user.email.toLowerCase() : "";
 
+    // IMPORTANT: Only calculate balance based on UNPAID shares.
+    // Settlements in this system update the share status to "Paid", so they are automatically accounted for.
     expDataset.forEach(exp => {
       const payer = exp.paidBy.toLowerCase().trim();
       exp.breakdown.forEach(p => {
         const debtor = p.email.toLowerCase().trim();
-        if (payer !== debtor && p.share > 0) {
+        if (payer !== debtor && p.share > 0.01 && p.status === "Unpaid") {
           const pairKey = [debtor, payer].sort().join('|');
           if (!pairMatrix[pairKey]) pairMatrix[pairKey] = 0;
           const [u1, u2] = pairKey.split('|');
           pairMatrix[pairKey] += (debtor === u1 ? p.share : -p.share);
         }
       });
-    });
-
-    settleDataset.forEach(set => {
-      const debtor = set.fromUser.toLowerCase().trim();
-      const creditor = set.toUser.toLowerCase().trim();
-      if (debtor !== creditor && set.amount > 0) {
-        const pairKey = [debtor, creditor].sort().join('|');
-        if (!pairMatrix[pairKey]) pairMatrix[pairKey] = 0;
-        const [u1, u2] = pairKey.split('|');
-        pairMatrix[pairKey] -= (debtor === u1 ? set.amount : -set.amount);
-      }
     });
 
     const directDebtRelations = [];
@@ -486,7 +477,7 @@ const App = {
     let html = '';
     App.state.expenses.forEach(exp => {
       const payer = exp.paidBy.toLowerCase().trim();
-      if (payer !== from && payer !== to) return; // Only expenses paid by either person in the pair
+      if (payer !== from && payer !== to) return;
 
       const other = payer === from ? to : from;
       const shareObj = exp.breakdown.find(p => p.email.toLowerCase().trim() === other);
@@ -497,7 +488,7 @@ const App = {
           <div class="bg-slate-50 dark:bg-slate-950/40 p-3 rounded-2xl border ${isDebt ? 'border-rose-500/40' : 'border-teal-500/40'} flex justify-between items-center transition">
             <div class="pr-2 overflow-hidden">
               <p class="text-xs font-black text-slate-900 dark:text-white line-clamp-1">${exp.title}</p>
-              <p class="text-[9px] font-mono text-slate-400 uppercase mt-0.5">${exp.date} • Utang ${isDebt ? 'mo kay' : 'sa iyo ni'} ${App.resolveUserDisplayName(payer)}</p>
+              <p class="text-[9px] font-mono text-slate-400 uppercase mt-0.5">${exp.date} • Utang ni ${App.resolveUserDisplayName(other)} kay ${App.resolveUserDisplayName(payer)}</p>
             </div>
             <span class="text-xs font-mono font-black ${isDebt ? 'text-rose-500' : 'text-teal-500'}">${isDebt ? '' : '-'}₱${shareObj.share.toFixed(2)}</span>
           </div>`;
@@ -554,7 +545,7 @@ const App = {
     });
 
     if (isAdmin) {
-      const otherDebts = matrices.simplifiedDebts.filter(d => d.from !== myEmail && d.to !== myEmail);
+      const otherDebts = matrices.simplifiedDebts.filter(d => d.from.toLowerCase().trim() !== myEmail && d.to.toLowerCase().trim() !== myEmail);
       if (otherDebts.length > 0) {
         html += `<div class="col-span-full mt-8 mb-4 border-b border-slate-200 dark:border-slate-800 pb-2">
           <h3 class="text-xs font-black uppercase tracking-widest text-slate-400 flex items-center gap-2"><i class="fas fa-shield-halved text-indigo-400"></i> System Admin View: All Pending Debts</h3>
