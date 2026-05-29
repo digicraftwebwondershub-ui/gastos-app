@@ -90,4 +90,13 @@
   .animate-shimmer {
     animation: shimmer 2s infinite;
   }
+
+  /* Scale Up Animation for tab switching */
+  @keyframes scaleUpFull {
+    from { transform: scale(0.98); opacity: 0.5; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  .animate-scale-up {
+    animation: scaleUpFull 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  }
 </style>

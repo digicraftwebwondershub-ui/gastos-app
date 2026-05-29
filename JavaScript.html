@@ -5,7 +5,8 @@
 const App = {
   state: {
     user: null, rights: null, categories: [], expenses: [], settlements: [], systemUsers: [], activeView: 'dashboard',
-    qrDirectory: [], estimatorLogs: [], themeMode: 'light'
+    qrDirectory: [], estimatorLogs: [], themeMode: 'light',
+    activeLeaderboardTab: 0
   },
 
   init: function() {
@@ -829,7 +830,8 @@ const App = {
     const container = document.getElementById('leaderboard-container');
     if(!container) return;
 
-    const activeCatId = document.getElementById('filter-category').value;
+    const filterCatEl = document.getElementById('filter-category');
+    const activeCatId = filterCatEl ? filterCatEl.value : '*';
     const userAggMap = {};
 
     // Initialize pool based on filter
@@ -1028,66 +1030,98 @@ const App = {
         </div>`;
     });
 
-    html += `</div>
+    container.innerHTML = html + '</div><div id="leaderboard-detailed-target" class="mt-16 border-t border-slate-100 dark:border-slate-800 pt-16"></div>';
+    App.state.leaderboardAwards = awards; // Cache for tab switching
+    App.renderLeaderboardDetailedStandings();
+  },
 
-    <div class="space-y-16">
-      <div class="flex items-center gap-6 mb-2">
-        <div class="h-[1px] flex-1 bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent"></div>
-        <h4 class="text-[10px] font-black uppercase tracking-[0.5em] text-slate-400 dark:text-slate-500">Detailed Member Standings</h4>
-        <div class="h-[1px] flex-1 bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent"></div>
-      </div>
+  renderLeaderboardDetailedStandings: function() {
+    const awards = App.state.leaderboardAwards;
+    const detailTarget = document.getElementById('leaderboard-detailed-target');
+    if (!detailTarget) return;
 
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-16 gap-y-12">`;
+    let html = `
+      <div class="space-y-8">
+        <div class="flex items-center gap-6 mb-2">
+          <div class="h-[1px] flex-1 bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent"></div>
+          <h4 class="text-[10px] font-black uppercase tracking-[0.5em] text-slate-400 dark:text-slate-500">Detailed Member Standings</h4>
+          <div class="h-[1px] flex-1 bg-gradient-to-r from-transparent via-slate-200 dark:via-slate-800 to-transparent"></div>
+        </div>
 
-    awards.forEach(a => {
+        <div class="flex flex-wrap justify-center gap-2 mb-8">`;
+
+    awards.forEach((a, idx) => {
+      const isActive = App.state.activeLeaderboardTab === idx;
       html += `
-        <div class="space-y-6">
-          <div class="flex items-center justify-between border-b border-slate-100 dark:border-slate-800 pb-4">
-            <div class="flex items-center gap-4">
-              <div class="${a.bg} ${a.color} w-12 h-12 rounded-2xl flex items-center justify-center text-xl shadow-inner">
+        <button onclick="App.switchLeaderboardTab(${idx})" class="flex items-center gap-2 px-4 py-2.5 rounded-2xl border transition-all duration-500 group/tab ${isActive ? 'bg-white dark:bg-slate-900 border-pink-500 text-pink-500 shadow-lg shadow-pink-500/20 scale-105 z-10' : 'bg-white/50 dark:bg-slate-900/50 border-slate-200 dark:border-slate-800 text-slate-400 hover:border-pink-300 dark:hover:border-pink-800 hover:text-slate-600 dark:hover:text-slate-300'}">
+          <i class="fas ${a.icon} text-xs transition-transform duration-300 ${isActive ? 'scale-110 rotate-12' : 'group-hover/tab:rotate-12'}"></i>
+          <span class="text-[10px] font-black uppercase tracking-widest">${a.title}</span>
+        </button>`;
+    });
+
+    html += `</div>`;
+
+    const a = awards[App.state.activeLeaderboardTab] || awards[0];
+    if (a) {
+      html += `
+        <div class="max-w-3xl mx-auto space-y-6 animate-scale-up">
+          <div class="bg-white dark:bg-slate-900/60 border border-slate-200 dark:border-slate-800 p-8 rounded-[3rem] shadow-xl relative overflow-hidden">
+            <div class="absolute top-0 right-0 p-8 opacity-5">
+              <i class="fas ${a.icon} text-9xl"></i>
+            </div>
+
+            <div class="flex items-center gap-4 mb-8 relative z-10">
+              <div class="${a.bg} ${a.color} w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-inner">
                 <i class="fas ${a.icon}"></i>
               </div>
               <div>
-                <h5 class="text-sm font-black text-slate-900 dark:text-white uppercase tracking-widest">${a.title}</h5>
-                <p class="text-[10px] text-slate-400 dark:text-slate-500 font-black uppercase tracking-tighter">${a.subtitle}</p>
+                <h5 class="text-lg font-black text-slate-900 dark:text-white uppercase tracking-widest">${a.title}</h5>
+                <p class="text-xs text-slate-400 dark:text-slate-500 font-bold uppercase tracking-widest">${a.subtitle}</p>
               </div>
             </div>
-            <div class="text-[9px] font-black text-slate-300 dark:text-slate-600 uppercase tracking-widest">Global Rank</div>
-          </div>
-          <div class="space-y-3">`;
+
+            <div class="space-y-3 relative z-10">`;
 
       a.rankData.forEach((entry, idx) => {
         const val = entry[a.metric];
         const formattedVal = a.format(val);
         const isTop3 = idx < 3;
-        const rankColor = idx === 0 ? 'bg-amber-400 shadow-amber-400/20' : (idx === 1 ? 'bg-slate-400 shadow-slate-400/20' : (idx === 2 ? 'bg-orange-500 shadow-orange-500/20' : 'bg-slate-200 dark:bg-slate-800'));
+        const rankColor = idx === 0 ? 'bg-amber-400 shadow-amber-400/30' : (idx === 1 ? 'bg-slate-400 shadow-slate-400/30' : (idx === 2 ? 'bg-orange-500 shadow-orange-500/30' : 'bg-slate-100 dark:bg-slate-800'));
 
         html += `
-          <div class="flex items-center justify-between p-4 rounded-3xl ${idx === 0 ? 'bg-gradient-to-r from-pink-500/5 to-transparent border border-pink-500/10' : 'bg-white dark:bg-slate-900/30 border border-slate-100 dark:border-slate-800/40'} shadow-sm transition hover:scale-[1.02] hover:shadow-md duration-300">
-            <div class="flex items-center gap-4">
-              <div class="w-8 h-8 ${rankColor} rounded-full flex items-center justify-center text-[11px] font-black ${isTop3 ? 'text-white' : 'text-slate-400 dark:text-slate-500'} shadow-lg">
-                ${idx + 1}
+          <div class="flex items-center justify-between p-5 rounded-[2rem] ${idx === 0 ? 'bg-gradient-to-r from-pink-500/10 via-pink-500/[0.03] to-transparent border-2 border-pink-500/20' : 'bg-slate-50/80 dark:bg-slate-950/50 border border-slate-200/50 dark:border-slate-800/50'} shadow-sm transition-all duration-300 hover:scale-[1.02] hover:shadow-lg group/rank">
+            <div class="flex items-center gap-6">
+              <div class="relative">
+                <div class="w-12 h-12 ${rankColor} rounded-2xl flex items-center justify-center text-sm font-black ${isTop3 ? 'text-white' : 'text-slate-400 dark:text-slate-500'} shadow-lg transform ${idx === 0 ? 'scale-110 rotate-3 group-hover/rank:rotate-12' : 'group-hover/rank:-rotate-6'} transition-transform duration-300">
+                  ${idx + 1}
+                </div>
+                ${idx === 0 ? '<div class="absolute -top-2 -right-2 bg-amber-400 text-white rounded-full w-5 h-5 flex items-center justify-center text-[10px] border-2 border-white dark:border-slate-900 animate-bounce"><i class="fas fa-crown"></i></div>' : ''}
               </div>
               <div class="flex flex-col">
-                <span class="text-xs font-black text-slate-800 dark:text-slate-200">${App.resolveUserDisplayName(entry.email)}</span>
-                <span class="text-[9px] text-slate-400 font-bold uppercase truncate max-w-[120px]">${entry.email}</span>
+                <span class="text-md font-black text-slate-900 dark:text-white group-hover/rank:text-pink-500 transition-colors">${App.resolveUserDisplayName(entry.email)}</span>
+                <span class="text-[11px] text-slate-400 dark:text-slate-500 font-mono font-bold tracking-tight">${entry.email}</span>
               </div>
             </div>
-            <div class="flex flex-col items-end">
-              <span class="text-xs font-mono font-black ${isTop3 ? 'text-pink-500' : 'text-slate-600 dark:text-slate-400'}">${formattedVal}</span>
-              ${idx === 0 ? '<span class="text-[8px] font-black text-amber-500 uppercase tracking-tighter">Current Leader</span>' : ''}
+            <div class="flex flex-col items-end gap-1">
+              <span class="text-md font-mono font-black ${isTop3 ? 'text-pink-500' : 'text-slate-700 dark:text-slate-300'}">${formattedVal}</span>
+              ${idx === 0 ? '<span class="px-2 py-0.5 bg-amber-400/10 text-amber-500 text-[9px] font-black rounded-lg uppercase tracking-widest border border-amber-400/20">Elite Tier</span>' : ''}
             </div>
           </div>`;
       });
 
       if (a.rankData.length === 0) {
-        html += `<p class="text-center text-[10px] text-slate-400 italic py-8">Wala pang data for this category. Stay tuned!</p>`;
+        html += `<p class="text-center text-xs text-slate-400 italic py-12">Wala pang data for this category. Stay tuned!</p>`;
       }
 
-      html += `</div></div>`;
-    });
+      html += `</div></div></div>`;
+    }
 
-    container.innerHTML = html + '</div></div>';
+    detailTarget.innerHTML = html + '</div>';
+  },
+
+  switchLeaderboardTab: function(idx) {
+    App.state.activeLeaderboardTab = idx;
+    App.renderLeaderboardDetailedStandings();
   },
 
   openModal: function(id) { 
