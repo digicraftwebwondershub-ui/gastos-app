@@ -629,7 +629,7 @@ const App = {
   launchDirectQRViewer: function(email) {
     const qr = App.state.qrDirectory.find(q => q.email.toLowerCase().trim() === email.toLowerCase().trim());
     if(!qr) {
-      alert("Notice: Sintu-sinto! Wala pang sinesave na QR Code image si " + App.resolveUserDisplayName(email) + " sa payment registry.");
+      alert("Opps! Wala pang sinesave na QR Code image si " + App.resolveUserDisplayName(email) + " sa payment registry.");
       return;
     }
     
