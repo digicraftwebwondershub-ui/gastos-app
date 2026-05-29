@@ -916,79 +916,85 @@ const App = {
 
     const awards = [
       {
-        title: "The King of Abono",
-        subtitle: "Highest Total Paid",
+        title: "The Salo Master",
+        subtitle: "Abono King/Queen Yarn? 👑",
         icon: "fa-crown",
+        animation: "animate-bounce",
         color: "text-amber-500",
         bg: "bg-amber-500/10",
         winner: sortedByAbono[0] ? App.resolveUserDisplayName(sortedByAbono[0].email) : "N/A",
         value: sortedByAbono[0] ? `₱${sortedByAbono[0].totalAbono.toLocaleString('en-US', {minimumFractionDigits:2})}` : "₱0",
-        desc: "Laging handang sumalo para sa barkada.",
+        desc: "Laging handang sumalo para sa barkada. Stay rich po! ✨",
         rankData: sortedByAbono,
         metric: 'totalAbono',
         format: (v) => '₱' + v.toLocaleString('en-US', {minimumFractionDigits:2})
       },
       {
-        title: "The Big Spender",
-        subtitle: "Highest Personal Share",
+        title: "The Gastador Era",
+        subtitle: "Investment Yarn? 💅",
         icon: "fa-coins",
+        animation: "animate-bounce",
         color: "text-pink-500",
         bg: "bg-pink-500/10",
         winner: sortedBySpend[0] ? App.resolveUserDisplayName(sortedBySpend[0].email) : "N/A",
         value: sortedBySpend[0] ? `₱${sortedBySpend[0].grossSpend.toLocaleString('en-US', {minimumFractionDigits:2})}` : "₱0",
-        desc: "Sulit ang bawat sentimo sa mga gala.",
+        desc: "Sulit ang bawat sentimo sa mga gala. Deserve mo yan! ✨",
         rankData: sortedBySpend,
         metric: 'grossSpend',
         format: (v) => '₱' + v.toLocaleString('en-US', {minimumFractionDigits:2})
       },
       {
-        title: "The MVP Speedster",
-        subtitle: "Quickest Payer",
+        title: "The Swift Payer",
+        subtitle: "Bayad Agad Streak 🔥",
         icon: "fa-bolt",
+        animation: "animate-bounce",
         color: "text-blue-500",
         bg: "bg-blue-500/10",
         winner: sortedBySpeed[0] ? App.resolveUserDisplayName(sortedBySpeed[0].email) : "N/A",
         value: sortedBySpeed[0] ? `${(sortedBySpeed[0].timeToPay.reduce((s,x)=>s+x,0)/sortedBySpeed[0].timeToPay.length).toFixed(1)} Days` : "N/A",
-        desc: "Mabilis pa sa alas-kwatro magbayad.",
+        desc: "Mabilis pa sa alas-kwatro magbayad. Very mindful! ⚡",
         rankData: sortedBySpeed,
         metric: 'timeToPay',
         format: (v) => (v.length > 0 ? (v.reduce((s,x)=>s+x,0)/v.length).toFixed(1) : '0') + ' Days'
       },
       {
-        title: "The Social Butterfly",
-        subtitle: "Most Participated Items",
+        title: "The Ultimate Joiner",
+        subtitle: "Laging Present Yarn? 🦋",
         icon: "fa-people-group",
+        animation: "animate-bounce",
         color: "text-teal-500",
         bg: "bg-teal-500/10",
         winner: sortedByParticipation[0] ? App.resolveUserDisplayName(sortedByParticipation[0].email) : "N/A",
         value: sortedByParticipation[0] ? `${sortedByParticipation[0].participationCount} Items` : "0 Items",
-        desc: "Laging present at kasama sa bawat gala.",
+        desc: "Laging present at kasama sa bawat gala. Slay! ✨",
         rankData: sortedByParticipation,
         metric: 'participationCount',
         format: (v) => v + ' Items'
       },
       {
         title: "The Budget Master",
-        subtitle: "Top Saver",
+        subtitle: "Wais sa Gastusan Energy 🛡️",
         icon: "fa-shield-halved",
+        animation: "animate-bounce",
         color: "text-emerald-500",
         bg: "bg-emerald-500/10",
         winner: sortedBySaving[0] ? App.resolveUserDisplayName(sortedBySaving[0].email) : "N/A",
         value: sortedBySaving[0] ? `₱${sortedBySaving[0].saving.toLocaleString('en-US', {minimumFractionDigits:2})}` : "₱0",
-        desc: "Under budget lagi! Wais sa gastusan.",
+        desc: "Under budget lagi! Tipid goals achieved! ✨",
         rankData: sortedBySaving,
         metric: 'saving',
         format: (v) => '₱' + v.toLocaleString('en-US', {minimumFractionDigits:2})
       },
       {
-        title: "The Reliable Auditor",
-        subtitle: "Most Expenses Recorded",
+        title: "The Resibo Master",
+        subtitle: "Audit Energy is Real! 📋",
         icon: "fa-clipboard-check",
+        animation: "animate-bounce",
         color: "text-purple-500",
         bg: "bg-purple-500/10",
         winner: sortedByAuditor[0] ? App.resolveUserDisplayName(sortedByAuditor[0].email) : "N/A",
         value: sortedByAuditor[0] ? `${sortedByAuditor[0].countRecorded} Entries` : "0 Entries",
-        desc: "Maasahan sa pag-track ng lahat ng gastos.",
+        desc: "Maasahan sa pag-track ng lahat ng gastos. No resibo, no entry! ✨",
         rankData: sortedByAuditor,
         metric: 'countRecorded',
         format: (v) => v + ' Entries'
@@ -1013,8 +1019,8 @@ const App = {
              <i class="fas ${a.icon} text-9xl"></i>
           </div>
           <div class="flex flex-col items-center text-center space-y-5 relative z-10">
-            <div class="${a.bg} ${a.color} w-20 h-20 rounded-[2rem] flex items-center justify-center text-3xl shadow-inner group-hover:scale-110 transition-all duration-500 group-hover:rotate-6">
-              <i class="fas ${a.icon} ${a.icon === 'fa-crown' ? 'animate-bounce' : ''}"></i>
+            <div class="${a.bg} ${a.color} w-20 h-20 rounded-[2rem] flex items-center justify-center text-3xl shadow-inner group-hover:scale-110 transition-all duration-500 group-hover:rotate-6 ${a.animation || ''}">
+              <i class="fas ${a.icon}"></i>
             </div>
             <div class="space-y-1">
               <h4 class="text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 dark:text-slate-500">${a.subtitle}</h4>
@@ -1071,7 +1077,7 @@ const App = {
             </div>
 
             <div class="flex items-center gap-4 mb-8 relative z-10">
-              <div class="${a.bg} ${a.color} w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-inner">
+              <div class="${a.bg} ${a.color} w-14 h-14 rounded-2xl flex items-center justify-center text-2xl shadow-inner ${a.animation || ''}">
                 <i class="fas ${a.icon}"></i>
               </div>
               <div>
