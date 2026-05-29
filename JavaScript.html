@@ -487,6 +487,60 @@ const App = {
     App.openModal('breakdown-modal');
   },
 
+  showSettlementBreakdown: function(fromEmail, toEmail, totalOptimized) {
+    const from = fromEmail.toLowerCase().trim();
+    const to = toEmail.toLowerCase().trim();
+
+    const summaryEl = document.getElementById('debt-breakdown-summary');
+    const listEl = document.getElementById('debt-breakdown-list');
+    const totalEl = document.getElementById('debt-breakdown-total');
+
+    if(!summaryEl || !listEl || !totalEl) return;
+
+    summaryEl.innerText = `${App.resolveUserDisplayName(from)} owes these items to ${App.resolveUserDisplayName(to)}:`;
+
+    let html = '';
+    let rawSum = 0;
+
+    // Scan all expenses where 'to' is the payer and 'from' has an unpaid share
+    App.state.expenses.forEach(exp => {
+      if (exp.paidBy.toLowerCase().trim() === to) {
+        const shareObj = exp.breakdown.find(p => p.email.toLowerCase().trim() === from);
+        if (shareObj && shareObj.share > 0.01 && shareObj.status === "Unpaid") {
+          rawSum += shareObj.share;
+          html += `
+            <div class="bg-slate-50 dark:bg-slate-950/40 p-3 rounded-2xl border border-slate-200 dark:border-slate-800 flex justify-between items-center transition hover:border-indigo-400">
+              <div class="pr-2">
+                <p class="text-xs font-black text-slate-900 dark:text-white line-clamp-1">${exp.title}</p>
+                <p class="text-[9px] font-mono text-slate-400 uppercase mt-0.5">${exp.date} // ${exp.id}</p>
+              </div>
+              <span class="text-xs font-mono font-black text-rose-500">₱${shareObj.share.toFixed(2)}</span>
+            </div>`;
+        }
+      }
+    });
+
+    // Handle optimization adjustments (multilateral simplification deltas)
+    const delta = totalOptimized - rawSum;
+    if (Math.abs(delta) > 0.05) {
+      html += `
+        <div class="bg-indigo-50 dark:bg-indigo-950/20 p-3 rounded-2xl border border-dashed border-indigo-300 dark:border-indigo-900 flex justify-between items-center">
+          <div class="pr-2">
+            <p class="text-xs font-black text-indigo-600 dark:text-indigo-400">Simplified Network Adjustment</p>
+            <p class="text-[9px] font-medium text-slate-400 mt-0.5 italic text-pretty">Auto-calculation for optimized multilateral debt loop.</p>
+          </div>
+          <span class="text-xs font-mono font-black ${delta > 0 ? 'text-emerald-500' : 'text-rose-500'}">
+            ${delta > 0 ? '+' : ''}₱${delta.toFixed(2)}
+          </span>
+        </div>`;
+    }
+
+    listEl.innerHTML = html || `<p class="text-center text-slate-400 py-6 italic">No direct raw items found. Might be a simplified aggregate.</p>`;
+    totalEl.innerText = `₱${totalOptimized.toFixed(2)}`;
+
+    App.openModal('debt-breakdown-modal');
+  },
+
   renderSettlementsModule: function(matrices) {
     const cardsContainer = document.getElementById('settlement-simplification-cards');
     if(!cardsContainer) return;
@@ -497,9 +551,12 @@ const App = {
     matrices.myDebtList.forEach(d => {
       html += `
         <div class="bg-white dark:bg-rose-950/5 border border-slate-200 dark:border-rose-500/20 p-4 rounded-3xl flex flex-col justify-between space-y-4 shadow-sm dark:shadow-none hover:shadow-md transition">
-          <div>
-            <p class="text-[9px] font-mono text-rose-500 uppercase tracking-widest font-bold flex items-center gap-1"><i class="fas fa-circle-exclamation"></i> Unpaid Liability</p>
-            <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">You owe <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(d.to)}</b></h4>
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-[9px] font-mono text-rose-500 uppercase tracking-widest font-bold flex items-center gap-1"><i class="fas fa-circle-exclamation"></i> Unpaid Liability</p>
+              <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">You owe <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(d.to)}</b></h4>
+            </div>
+            <button onclick="App.showSettlementBreakdown('${myEmail}', '${d.to}', ${d.amount})" class="text-[10px] text-slate-400 hover:text-indigo-500 transition font-bold"><i class="fas fa-list-ul"></i> View Details</button>
           </div>
           <div class="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-3">
             <span class="text-sm font-mono font-black text-rose-500">₱${d.amount.toFixed(2)}</span>
@@ -514,9 +571,12 @@ const App = {
     matrices.myReceivablesList.forEach(r => {
       html += `
         <div class="bg-white dark:bg-teal-950/5 border border-slate-200 dark:border-teal-500/20 p-4 rounded-3xl flex flex-col justify-between space-y-4 shadow-sm dark:shadow-none hover:shadow-md transition">
-          <div>
-            <p class="text-[9px] font-mono text-teal-500 tracking-widest font-bold flex items-center gap-1"><i class="fas fa-bell-ring animate-bounce text-xs"></i> Awaiting Collection</p>
-            <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">Dapat kang bayaran ni <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(r.from)}</b></h4>
+          <div class="flex justify-between items-start">
+            <div>
+              <p class="text-[9px] font-mono text-teal-500 tracking-widest font-bold flex items-center gap-1"><i class="fas fa-bell-ring animate-bounce text-xs"></i> Awaiting Collection</p>
+              <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">Dapat kang bayaran ni <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(r.from)}</b></h4>
+            </div>
+            <button onclick="App.showSettlementBreakdown('${r.from}', '${myEmail}', ${r.amount})" class="text-[10px] text-slate-400 hover:text-indigo-500 transition font-bold"><i class="fas fa-list-ul"></i> View Details</button>
           </div>
           <div class="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-3">
             <span class="text-sm font-mono font-black text-teal-600 dark:text-teal-400">₱${r.amount.toFixed(2)}</span>
@@ -534,12 +594,15 @@ const App = {
         otherDebts.forEach(d => {
           html += `
             <div class="bg-white dark:bg-slate-900/40 border border-slate-200 dark:border-slate-800 p-4 rounded-3xl flex flex-col justify-between space-y-4 shadow-sm hover:shadow-md transition">
-              <div>
-                <p class="text-[9px] font-mono text-indigo-500 uppercase tracking-widest font-bold flex items-center gap-1"><i class="fas fa-circle-nodes"></i> Network Liability</p>
-                <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">
-                  <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(d.from)}</b> owes
-                  <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(d.to)}</b>
-                </h4>
+              <div class="flex justify-between items-start">
+                <div>
+                  <p class="text-[9px] font-mono text-indigo-500 uppercase tracking-widest font-bold flex items-center gap-1"><i class="fas fa-circle-nodes"></i> Network Liability</p>
+                  <h4 class="text-xs font-medium text-slate-600 dark:text-slate-400 mt-1">
+                    <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(d.from)}</b> owes
+                    <b class="text-slate-900 dark:text-white font-black">${App.resolveUserDisplayName(d.to)}</b>
+                  </h4>
+                </div>
+                <button onclick="App.showSettlementBreakdown('${d.from}', '${d.to}', ${d.amount})" class="text-[10px] text-slate-400 hover:text-indigo-500 transition font-bold"><i class="fas fa-list-ul"></i> View Details</button>
               </div>
               <div class="flex items-center justify-between border-t border-slate-100 dark:border-slate-800/60 pt-3">
                 <span class="text-sm font-mono font-black text-slate-900 dark:text-white">₱${d.amount.toFixed(2)}</span>
