@@ -279,13 +279,20 @@ const App = {
   renderActiveViewContext: function() {
     const expData = App.getFilteredExpenses();
     const setData = App.getFilteredSettlements();
-    const matrices = App.computeBalanceMatrices(expData, setData);
+    
+    // For proper debt calculation, we MUST use the full history of expenses and settlements
+    // otherwise the Net Balance will be incorrect when a date filter is applied.
+    const filterCat = document.getElementById('filter-category');
+    const catF = filterCat ? filterCat.value : '*';
+    const allExpForCat = App.state.expenses.filter(e => (catF === '*' || e.catId === catF));
+    const allSetForCat = App.state.settlements.filter(s => (catF === '*' || s.catId === catF));
+    const cumulativeMatrices = App.computeBalanceMatrices(allExpForCat, allSetForCat);
 
     switch(App.state.activeView) {
-      case 'dashboard': App.renderDashboardView(expData, matrices); break;
+      case 'dashboard': App.renderDashboardView(expData, cumulativeMatrices); break;
       case 'categories': App.renderCategoriesGrid(); break;
       case 'expenses': App.renderExpensesTable(expData); break;
-      case 'settlements': App.renderSettlementsModule(matrices); break;
+      case 'settlements': App.renderSettlementsModule(cumulativeMatrices); break;
       case 'qrhub': App.renderQRDirectoryModule(); break;
       case 'estimator': App.renderEstimatorModule(); break;
       case 'leaderboard': App.renderLeaderboardView(expData); break;
