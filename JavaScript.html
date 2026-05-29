@@ -623,10 +623,15 @@ const App = {
       sumTotalEstimates += line.amount;
       const participants = line.participants && line.participants.length > 0 ? line.participants : currentCatObj.members;
       const shareCheck = line.amount / participants.length;
+      const isIncluded = participants.includes(myEmail);
       
-      if (participants.includes(myEmail)) {
+      if (isIncluded) {
         sumMyProjectedAmbagan += shareCheck;
       }
+
+      const inclusionBadge = isIncluded
+        ? `<span class="ml-2 px-1.5 py-0.5 bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20 rounded text-[9px] font-black uppercase tracking-tighter"><i class="fas fa-check-circle mr-0.5"></i> Included</span>`
+        : `<span class="ml-2 px-1.5 py-0.5 bg-slate-500/10 text-slate-500 dark:text-slate-400 border border-slate-500/20 rounded text-[9px] font-black uppercase tracking-tighter"><i class="fas fa-times-circle mr-0.5"></i> Not Joining</span>`;
 
       let actionsHtml = '';
       if (isAdmin || (line.createdBy && line.createdBy === myEmail)) {
@@ -640,7 +645,15 @@ const App = {
 
       html += `
         <tr class="hover:bg-slate-50 dark:hover:bg-slate-900/30 transition text-slate-700 dark:text-slate-300">
-          <td class="p-4 font-bold text-slate-900 dark:text-white"><i class="fas fa-signs-post text-orange-400 mr-2"></i>${line.title}</td>
+          <td class="p-4 font-bold text-slate-900 dark:text-white">
+            <div class="flex items-center">
+              <i class="fas fa-signs-post text-orange-400 mr-2"></i>
+              <div class="flex flex-col">
+                <span>${line.title}</span>
+                <div class="mt-1">${inclusionBadge}</div>
+              </div>
+            </div>
+          </td>
           <td class="p-4 font-mono font-semibold">₱${line.amount.toFixed(2)}</td>
           <td class="p-4"><span class="px-2 py-0.5 bg-orange-500/10 text-orange-600 dark:text-orange-400 border border-orange-500/20 rounded-md font-bold text-[10px]"><i class="fas fa-user-group mr-1"></i>${participants.length} pax</span></td>
           <td class="p-4 font-mono font-bold text-purple-500">₱${shareCheck.toFixed(2)} / head</td>
