@@ -170,13 +170,13 @@
           <div class="flex justify-between items-center">
             <div>
               <h3 class="text-xs font-mono uppercase tracking-wider text-slate-400 dark:text-slate-500 flex items-center gap-1.5"><i class="fas fa-handshake text-pink-400"></i> Bayaran ng Gastos</h3>
-              <p class="text-[10px] text-slate-400 mt-0.5"><i class="fas fa-calculator text-indigo-400"></i> Real-time calculation of pending group debts.</p>
+              <p class="text-[10px] text-slate-400 mt-0.5"><i class="fas fa-calculator text-indigo-400"></i> Direct pair-based debt calculation (no consolidation).</p>
             </div>
             <button onclick="App.openSettleModal()" class="bg-gradient-to-r from-teal-400 to-indigo-500 text-white font-bold px-4 py-2 rounded-xl text-xs uppercase tracking-wider shadow-md shadow-indigo-400/10 hover:scale-[1.02] transition">
               <i class="fas fa-handshake-angle mr-1.5"></i> Record a Payment
             </button>
           </div>
-          <div id="settlement-simplification-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
+          <div id="settlement-direct-cards" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4"></div>
         </div>
 
         <div id="view-qrhub" class="view-pane hidden space-y-6">
